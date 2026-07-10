@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sample Roll DAW - Dynamic Tracks</title>
+    <title>Sample Roll DAW - Track Controls</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
@@ -20,11 +20,15 @@
             background: #27272a;
             border-radius: 0px;
         }
+        /* Unificar altos de pista de forma estricta */
+        .track-height {
+            height: 64px;
+        }
     </style>
 </head>
 <body class="bg-black text-zinc-200 h-screen flex flex-col justify-center items-center overflow-hidden font-sans select-none">
 
-    <div class="w-11/12 max-w-5xl h-[80vh] bg-[#0c0c0e] border border-zinc-900 rounded-none shadow-2xl flex flex-col overflow-hidden">
+    <div class="w-11/12 max-w-6xl h-[80vh] bg-[#0c0c0e] border border-zinc-900 rounded-none shadow-2xl flex flex-col overflow-hidden">
         
         <div class="bg-[#121214] border-b border-zinc-900 p-4 flex items-center justify-between gap-4 z-50">
             
@@ -62,17 +66,28 @@
             </div>
         </div>
 
-        <div id="ruler-container" class="w-full bg-[#101012] border-b border-zinc-900 h-8 overflow-hidden relative text-[10px] font-mono text-zinc-500 select-none">
-            <div id="time-ruler" class="absolute inset-y-0 left-0 w-[60000px] h-full vertical-grid flex items-end pb-1"></div>
-        </div>
-
-        <div class="flex-1 relative bg-[#060607] overflow-auto vertical-grid custom-scroll" id="timeline-container">
+        <div class="flex-1 flex overflow-hidden relative">
             
-            <div id="timeline-stretch" class="absolute inset-y-0 left-0 w-[60000px] pointer-events-none">
-                <div id="playhead" class="absolute top-0 bottom-0 w-[1.5px] bg-white shadow-[0_0_8px_rgba(255,255,255,0.8)] z-30 left-0"></div>
-            </div>
+            <div id="headers-column" class="w-48 bg-[#0f0f11] border-r border-zinc-900 flex flex-col z-40 pt-10 gap-3 select-none">
+                </div>
 
-            <div id="tracks-container" class="absolute top-0 left-0 w-[60000px] flex flex-col pt-2 gap-3 pointer-events-none"></div>
+            <div class="flex-1 flex flex-col overflow-hidden relative">
+                
+                <div id="ruler-container" class="w-full bg-[#101012] border-b border-zinc-900 h-10 overflow-hidden relative text-[10px] font-mono text-zinc-500 select-none">
+                    <div id="time-ruler" class="absolute inset-y-0 left-0 w-[60000px] h-full vertical-grid flex items-end pb-1"></div>
+                </div>
+
+                <div class="flex-1 relative bg-[#060607] overflow-auto vertical-grid custom-scroll" id="timeline-container">
+                    
+                    <div id="timeline-stretch" class="absolute inset-y-0 left-0 w-[60000px] pointer-events-none">
+                        <div id="playhead" class="absolute top-0 bottom-0 w-[1.5px] bg-white shadow-[0_0_8px_rgba(255,255,255,0.8)] z-30 left-0"></div>
+                    </div>
+
+                    <div id="tracks-container" class="absolute top-0 left-0 w-[60000px] flex flex-col pt-3 gap-3 pointer-events-none">
+                        </div>
+                </div>
+                
+            </div>
         </div>
     </div>
 
@@ -90,6 +105,7 @@
         const inputBpm = document.getElementById('input-bpm');
         const audioUpload = document.getElementById('audio-upload');
         const timeRuler = document.getElementById('time-ruler');
+        const headersColumn = document.getElementById('headers-column');
         const tracksContainer = document.getElementById('tracks-container');
         const playhead = document.getElementById('playhead');
         const timelineContainer = document.getElementById('timeline-container');
@@ -112,8 +128,10 @@
 
         document.documentElement.style.setProperty('--grid-width', `${pixelsPerSecond}px`);
 
+        // Sincronizar scrolls y vistas
         timelineContainer.addEventListener('scroll', () => {
             rulerContainer.scrollLeft = timelineContainer.scrollLeft;
+            headersColumn.scrollTop = timelineContainer.scrollTop;
         });
 
         Tone.Transport.bpm.value = 120;
@@ -135,7 +153,7 @@
         }
         dibujarReglaDeTiempo();
 
-        // IMPORTAR AUDIO (CREA RENGLÓN O REUTILIZA ESPACIO LIMPIO)
+        // IMPORTAR AUDIO Y CREAR ENTRADAS DE CANALES
         audioUpload.addEventListener('change', async (e) => {
             const file = e.target.files[0];
             if (!file) return;
@@ -145,23 +163,95 @@
                 const freshBuffer = await Tone.getContext().decodeAudioData(arrayBuffer);
                 const fileName = file.name.toUpperCase();
 
-                // Crear un ID único para la pista nueva
                 const trackId = trackIdCounter++;
+                const numeroCanal = tracksList.length + 1;
+
+                // 1. CREAR PANEL IZQUIERDO CONTROLADOR (Channel Header)
+                const headerDiv = document.createElement('div');
+                headerDiv.className = "w-full track-height bg-[#141416] border-y border-zinc-900 px-3 flex flex-col justify-center gap-1 text-[11px] font-mono shrink-0";
+                headerDiv.setAttribute('data-header-id', trackId);
+                
+                headerDiv.innerHTML = `
+                    <div class="flex items-center justify-between">
+                        <span class="text-zinc-400 font-bold tracking-wide">CHANNEL ${numeroCanal}</span>
+                        <button class="btn-mute w-5 h-5 bg-zinc-800 border border-zinc-700 text-[10px] font-extrabold flex items-center justify-center hover:bg-zinc-700 transition text-zinc-400" data-track-id="${trackId}">M</button>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="volume-2" class="w-3 h-3 text-zinc-500"></i>
+                        <input type="range" min="0" max="1" step="0.01" value="0.8" class="slider-volume w-full accent-white bg-zinc-800 h-1 appearance-none cursor-pointer" data-track-id="${trackId}">
+                    </div>
+                `;
+                headersColumn.appendChild(headerDiv);
+                lucide.createIcons();
+
+                // 2. CREAR NODE DE VOLUMEN (Tone.Volume) PARA ESTE CANAL
+                // Inicializado en -3dB aprox para un volumen cómodo
+                const channelVolumeNode = new Tone.Volume(-2).toDestination();
+
+                // 3. CREAR RENGLÓN DEL VISUALIZADOR (Derecha)
                 const trackRow = document.createElement('div');
-                trackRow.className = "w-full h-16 bg-zinc-950/20 border-y border-zinc-900/40 relative pointer-events-auto";
+                trackRow.className = "w-full track-height bg-zinc-950/20 border-y border-zinc-900/40 relative pointer-events-auto shrink-0";
                 trackRow.setAttribute('data-track-id', trackId);
                 tracksContainer.appendChild(trackRow);
                 
-                tracksList.push({ id: trackId, domRow: trackRow });
+                tracksList.push({ 
+                    id: trackId, 
+                    domRow: trackRow, 
+                    domHeader: headerDiv,
+                    volumeNode: channelVolumeNode,
+                    isMuted: false,
+                    volumeValue: 0.8
+                });
 
+                // Asignar los Eventos al Panel de Control Recién Creado
+                configurarEventosHeader(trackId);
+
+                // Instanciar el bloque
                 crearNuevoBloque(0, 0, freshBuffer.duration, trackId, freshBuffer, fileName);
                 
-                // Limpiar el input para permitir cargar el mismo archivo seguidamente si se desea
                 audioUpload.value = '';
             } catch (error) {
                 console.error("Error cargando el archivo:", error);
             }
         });
+
+        // MANEJO DE EVENTOS DE VOLUMEN Y MUTE
+        function configurarEventosHeader(trackId) {
+            const trackData = tracksList.find(t => t.id === trackId);
+            if (!trackData) return;
+
+            const headerDom = trackData.domHeader;
+            const muteBtn = headerDom.querySelector('.btn-mute');
+            const volumeSlider = headerDom.querySelector('.slider-volume');
+
+            // Evento Mute
+            muteBtn.addEventListener('click', () => {
+                trackData.isMuted = !trackData.isMuted;
+                if (trackData.isMuted) {
+                    trackData.volumeNode.mute = true;
+                    muteBtn.classList.replace('bg-zinc-800', 'bg-red-600');
+                    muteBtn.classList.replace('text-zinc-400', 'text-white');
+                    muteBtn.classList.replace('border-zinc-700', 'border-red-500');
+                } else {
+                    trackData.volumeNode.mute = false;
+                    muteBtn.classList.replace('bg-red-600', 'bg-zinc-800');
+                    muteBtn.classList.replace('text-white', 'text-zinc-400');
+                    muteBtn.classList.replace('border-red-500', 'border-zinc-700');
+                }
+            });
+
+            // Evento Slider Volumen (Conversión lineal a logarítmica dB)
+            volumeSlider.addEventListener('input', (e) => {
+                const val = parseFloat(e.target.value);
+                trackData.volumeValue = val;
+                if (val === 0) {
+                    trackData.volumeNode.volume.value = -Infinity;
+                } else {
+                    // Mapear rango 0-1 a escala en decibeles (-40dB a 0dB)
+                    trackData.volumeNode.volume.value = Tone.gainToDb(val);
+                }
+            });
+        }
 
         function crearNuevoBloque(posX, startTime, endTime, trackId, buffer, name) {
             const id = blockIdCounter++;
@@ -190,7 +280,8 @@
             }
             lucide.createIcons();
 
-            const player = new Tone.Player({ url: buffer, sync: false }).toDestination();
+            // CONECTAR EL PLAYER AL NODO DE VOLUMEN ESPECÍFICO DE ESTA PISTA
+            const player = new Tone.Player({ url: buffer, sync: false }).connect(targetTrack.volumeNode);
 
             const blockObject = {
                 id: id,
@@ -277,7 +368,7 @@
             ctx.fillStyle = '#ffffff';
 
             for (let i = 0; i < totalBarras; i++) {
-                let inicioMuestra = muestraInicio + (i * pasoMuestra);
+                let inicioMuestra = i * pasoMuestra + muestraInicio;
                 let maximoValor = 0;
                 
                 for (let j = 0; j < pasoMuestra; j++) {
@@ -399,7 +490,7 @@
         }
         requestAnimationFrame(actualizarPlayhead);
 
-        // CONTROL DE ELIMINACIÓN INTELIGENTE DE RENGLONES VACÍOS
+        // ATAJOS TECLADO (CORTAR / ELIMINAR CON LIMPIEZA DE HEADER)
         window.addEventListener('keydown', (e) => {
             if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'x') {
                 if (selectedBlockId !== null) {
@@ -408,19 +499,26 @@
                     if (index !== -1) {
                         const trackIdAsociado = blocksList[index].trackId;
                         
-                        // Eliminar el bloque físicamente
                         blocksList[index].player.dispose();
                         blocksList[index].domElement.remove();
                         blocksList.splice(index, 1);
                         selectedBlockId = null;
 
-                        // ARREGLADO: Comprobar si queda algún bloque vivo en esa pista
                         const quedanBloquesEnTrack = blocksList.some(b => b.trackId === trackIdAsociado);
                         if (!quedanBloquesEnTrack) {
                             const tIndex = tracksList.findIndex(t => t.id === trackIdAsociado);
                             if (tIndex !== -1) {
-                                tracksList[tIndex].domRow.remove(); // Borra el renglón del DOM
-                                tracksList.splice(tIndex, 1); // Lo remueve de la memoria
+                                // Remover nodo de volumen, fader izquierdo y renglón derecho
+                                tracksList[tIndex].volumeNode.dispose();
+                                tracksList[tIndex].domRow.remove(); 
+                                tracksList[tIndex].domHeader.remove(); 
+                                tracksList.splice(tIndex, 1); 
+                                
+                                // Re-etiquetar canales visibles restantes de forma ordenada
+                                tracksList.forEach((t, idx) => {
+                                    const spanLabel = t.domHeader.querySelector('span');
+                                    if (spanLabel) spanLabel.innerText = `CHANNEL ${idx + 1}`;
+                                });
                             }
                         }
 
