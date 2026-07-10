@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sample Roll DAW - Tracks Align Fix</title>
+    <title>Sample Roll DAW - Zoom 50% & Drag and Drop</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
         .vertical-grid {
-            background-size: var(--grid-width, 30px) 100%;
+            background-size: var(--grid-width, 50px) 100%;
             background-image: linear-gradient(to right, #1f1f23 1px, transparent 1px);
         }
         .custom-scroll::-webkit-scrollbar {
@@ -20,17 +20,23 @@
             background: #27272a;
             border-radius: 0px;
         }
-        /* Unificar altos de pista de forma estricta */
         .track-height {
             height: 64px;
         }
+        /* Efecto visual al arrastrar archivo sobre el timeline */
+        .drag-over {
+            background-color: rgba(255, 255, 255, 0.03) !important;
+            outline: 2px dashed #3f3f46 !important;
+            outline-offset: -4px;
+        }
     </style>
 </head>
-<body class="bg-black text-zinc-200 h-screen flex flex-col justify-center items-center overflow-hidden font-sans select-none">
+<body class="bg-black text-zinc-200 h-screen w-screen overflow-hidden font-sans select-none m-0 p-0 flex items-center justify-center">
 
-    <div class="w-11/12 max-w-6xl h-[80vh] bg-[#0c0c0e] border border-zinc-900 rounded-none shadow-2xl flex flex-col overflow-hidden">
+    <div class="w-11/12 max-w-6xl h-[80vh] bg-[#0c0c0e] border border-zinc-900 rounded-none shadow-2xl flex flex-col overflow-hidden relative">
         
-        <div class="bg-[#121214] border-b border-zinc-900 p-4 flex items-center justify-between gap-4 z-50">
+        <!-- BARRA DE CONTROL SUPERIOR -->
+        <div class="bg-[#121214] border-b border-zinc-900 p-4 flex items-center justify-between gap-4 z-50 shrink-0">
             
             <div class="flex items-center gap-2">
                 <button id="btn-restart" class="p-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-none transition" title="Reiniciar al inicio">
@@ -45,7 +51,7 @@
                 <button id="btn-zoom-out" class="p-1.5 hover:bg-zinc-800 rounded-none text-zinc-400 hover:text-white transition" title="Alejar Zoom">
                     <i data-lucide="zoom-out" class="w-4 h-4"></i>
                 </button>
-                <span id="txt-zoom" class="text-[10px] font-mono text-zinc-500 px-1 min-w-[35px] text-center">30%</span>
+                <span id="txt-zoom" class="text-[10px] font-mono text-zinc-500 px-1 min-w-[35px] text-center">50%</span>
                 <button id="btn-zoom-in" class="p-1.5 hover:bg-zinc-800 rounded-none text-zinc-400 hover:text-white transition" title="Acercar Zoom">
                     <i data-lucide="zoom-in" class="w-4 h-4"></i>
                 </button>
@@ -57,37 +63,39 @@
                 <span class="text-xs text-zinc-600 font-bold">BPM</span>
             </div>
 
+            <!-- BOTÓN IMPORTAR COMPACTO (SÓLO ICONO) -->
             <div>
-                <label for="audio-upload" class="flex items-center gap-2 px-4 py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 rounded-none cursor-pointer text-sm font-medium transition text-white">
+                <label for="audio-upload" class="flex items-center justify-center p-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 rounded-none cursor-pointer transition text-white" title="Importar Audio">
                     <i data-lucide="upload" class="w-4 h-4"></i>
-                    Importar Audio
                 </label>
                 <input id="audio-upload" type="file" accept="audio/*" class="hidden">
             </div>
         </div>
 
+        <!-- ESTRUCTURA DEL SECUENCIADOR MULTI-PANEL -->
         <div class="flex-1 flex overflow-hidden relative">
             
-            <div class="w-48 bg-[#0f0f11] border-r border-zinc-900 flex flex-col z-40 select-none">
+            <!-- PANEL IZQUIERDO: CONTROLES DE PISTA (HEADERS) -->
+            <div class="w-48 bg-[#0f0f11] border-r border-zinc-900 flex flex-col z-40 select-none shrink-0">
                 <div class="h-10 border-b border-zinc-900 shrink-0 bg-[#101012]"></div>
-                <div id="headers-column" class="flex-1 flex flex-col gap-3 pt-3 overflow-hidden">
-                    </div>
+                <div id="headers-column" class="flex-1 flex flex-col gap-3 pt-3 overflow-hidden"></div>
             </div>
 
+            <!-- PANEL DERECHO: CUADRÍCULA / REGLA / LÍNEA -->
             <div class="flex-1 flex flex-col overflow-hidden relative">
                 
                 <div id="ruler-container" class="w-full bg-[#101012] border-b border-zinc-900 h-10 overflow-hidden relative text-[10px] font-mono text-zinc-500 select-none">
                     <div id="time-ruler" class="absolute inset-y-0 left-0 w-[60000px] h-full vertical-grid flex items-end pb-1"></div>
                 </div>
 
+                <!-- ÁREA DE DETALLE (TIMELINE) -> Soporta arrastrar archivos aquí -->
                 <div class="flex-1 relative bg-[#060607] overflow-auto vertical-grid custom-scroll" id="timeline-container">
                     
                     <div id="timeline-stretch" class="absolute inset-y-0 left-0 w-[60000px] pointer-events-none">
                         <div id="playhead" class="absolute top-0 bottom-0 w-[1.5px] bg-white shadow-[0_0_8px_rgba(255,255,255,0.8)] z-30 left-0"></div>
                     </div>
 
-                    <div id="tracks-container" class="absolute top-0 left-0 w-[60000px] flex flex-col pt-3 gap-3 pointer-events-none">
-                        </div>
+                    <div id="tracks-container" class="absolute top-0 left-0 w-[60000px] flex flex-col pt-3 gap-3 pointer-events-none"></div>
                 </div>
                 
             </div>
@@ -125,13 +133,13 @@
         let startX = 0;
         let draggedBlockData = null;
         
-        let currentZoomLevel = 0.3;
+        // 1. CAMBIO AQUÍ: Zoom por defecto al 50% (0.5)
+        let currentZoomLevel = 0.5;
         const basePixelsPerSecond = 100;
         let pixelsPerSecond = basePixelsPerSecond * currentZoomLevel;
 
         document.documentElement.style.setProperty('--grid-width', `${pixelsPerSecond}px`);
 
-        // Sincronizar scrolls verticales y horizontales a la perfección
         timelineContainer.addEventListener('scroll', () => {
             rulerContainer.scrollLeft = timelineContainer.scrollLeft;
             headersColumn.scrollTop = timelineContainer.scrollTop;
@@ -156,11 +164,9 @@
         }
         dibujarReglaDeTiempo();
 
-        // IMPORTAR AUDIO Y CREAR ENTRADAS DE TRACKS
-        audioUpload.addEventListener('change', async (e) => {
-            const file = e.target.files[0];
+        // FUNCIÓN CORE PARA PROCESAR EL ARCHIVO DE AUDIO (Reutilizable para Input y Drag&Drop)
+        async function procesarArchivoDeAudio(file) {
             if (!file) return;
-            
             try {
                 const arrayBuffer = await file.arrayBuffer();
                 const freshBuffer = await Tone.getContext().decodeAudioData(arrayBuffer);
@@ -169,7 +175,7 @@
                 const trackId = trackIdCounter++;
                 const numeroTrack = tracksList.length + 1;
 
-                // 1. CREAR PANEL IZQUIERDO CONTROLADOR (Track Header)
+                // 1. Panel Izquierdo Controlador (Header)
                 const headerDiv = document.createElement('div');
                 headerDiv.className = "w-full track-height bg-[#141416] border-y border-zinc-900 px-3 flex flex-col justify-center gap-1 text-[11px] font-mono shrink-0";
                 headerDiv.setAttribute('data-header-id', trackId);
@@ -187,10 +193,10 @@
                 headersColumn.appendChild(headerDiv);
                 lucide.createIcons();
 
-                // 2. CREAR NODE DE VOLUMEN PARA ESTE TRACK
+                // 2. Nodo de volumen
                 const channelVolumeNode = new Tone.Volume(-2).toDestination();
 
-                // 3. CREAR RENGLÓN DEL VISUALIZADOR (Derecha) - Alineación simétrica con pt-3
+                // 3. Fila del Visualizador (Derecha)
                 const trackRow = document.createElement('div');
                 trackRow.className = "w-full track-height bg-zinc-950/20 border-y border-zinc-900/40 relative pointer-events-auto shrink-0";
                 trackRow.setAttribute('data-track-id', trackId);
@@ -207,12 +213,42 @@
 
                 configurarEventosHeader(trackId);
 
-                // Instanciar el bloque
+                // Crear el Bloque de Audio Inicial
                 crearNuevoBloque(0, 0, freshBuffer.duration, trackId, freshBuffer, fileName);
-                
-                audioUpload.value = '';
             } catch (error) {
-                console.error("Error cargando el archivo:", error);
+                console.error("Error cargando el archivo de audio:", error);
+            }
+        }
+
+        // Importación tradicional por click
+        audioUpload.addEventListener('change', async (e) => {
+            await procesarArchivoDeAudio(e.target.files[0]);
+            audioUpload.value = '';
+        });
+
+        // EVENTOS PARA DRAG AND DROP (Arrastrar y soltar archivos en el Timeline)
+        timelineContainer.addEventListener('dragover', (e) => {
+            e.preventDefault(); // Necesario para permitir soltar el elemento
+            timelineContainer.classList.add('drag-over');
+        });
+
+        timelineContainer.addEventListener('dragleave', () => {
+            timelineContainer.classList.remove('drag-over');
+        });
+
+        timelineContainer.addEventListener('drop', async (e) => {
+            e.preventDefault();
+            timelineContainer.classList.remove('drag-over');
+            
+            const archivos = e.dataTransfer.files;
+            if (archivos.length > 0) {
+                // Filtrar para asegurarnos que sea un archivo de audio
+                if (archivos[0].type.startsWith('audio/')) {
+                    await Tone.start(); // Asegura el contexto de audio si no se ha interactuado antes
+                    await procesarArchivoDeAudio(archivos[0]);
+                } else {
+                    alert("Por favor, arrastra únicamente archivos de audio (MP3, WAV, etc.)");
+                }
             }
         });
 
@@ -486,7 +522,6 @@
         }
         requestAnimationFrame(actualizarPlayhead);
 
-        // ATAJOS TECLADO
         window.addEventListener('keydown', (e) => {
             if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'x') {
                 if (selectedBlockId !== null) {
@@ -509,7 +544,6 @@
                                 tracksList[tIndex].domHeader.remove(); 
                                 tracksList.splice(tIndex, 1); 
                                 
-                                // Re-etiquetar tracks visibles de forma ordenada: TRACK 1, TRACK 2...
                                 tracksList.forEach((t, idx) => {
                                     const spanLabel = t.domHeader.querySelector('span');
                                     if (spanLabel) spanLabel.innerText = `TRACK ${idx + 1}`;
