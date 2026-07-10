@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sample Roll DAW - Track Controls</title>
+    <title>Sample Roll DAW - Tracks Align Fix</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
@@ -68,8 +68,11 @@
 
         <div class="flex-1 flex overflow-hidden relative">
             
-            <div id="headers-column" class="w-48 bg-[#0f0f11] border-r border-zinc-900 flex flex-col z-40 pt-10 gap-3 select-none">
-                </div>
+            <div class="w-48 bg-[#0f0f11] border-r border-zinc-900 flex flex-col z-40 select-none">
+                <div class="h-10 border-b border-zinc-900 shrink-0 bg-[#101012]"></div>
+                <div id="headers-column" class="flex-1 flex flex-col gap-3 pt-3 overflow-hidden">
+                    </div>
+            </div>
 
             <div class="flex-1 flex flex-col overflow-hidden relative">
                 
@@ -128,7 +131,7 @@
 
         document.documentElement.style.setProperty('--grid-width', `${pixelsPerSecond}px`);
 
-        // Sincronizar scrolls y vistas
+        // Sincronizar scrolls verticales y horizontales a la perfección
         timelineContainer.addEventListener('scroll', () => {
             rulerContainer.scrollLeft = timelineContainer.scrollLeft;
             headersColumn.scrollTop = timelineContainer.scrollTop;
@@ -153,7 +156,7 @@
         }
         dibujarReglaDeTiempo();
 
-        // IMPORTAR AUDIO Y CREAR ENTRADAS DE CANALES
+        // IMPORTAR AUDIO Y CREAR ENTRADAS DE TRACKS
         audioUpload.addEventListener('change', async (e) => {
             const file = e.target.files[0];
             if (!file) return;
@@ -164,16 +167,16 @@
                 const fileName = file.name.toUpperCase();
 
                 const trackId = trackIdCounter++;
-                const numeroCanal = tracksList.length + 1;
+                const numeroTrack = tracksList.length + 1;
 
-                // 1. CREAR PANEL IZQUIERDO CONTROLADOR (Channel Header)
+                // 1. CREAR PANEL IZQUIERDO CONTROLADOR (Track Header)
                 const headerDiv = document.createElement('div');
                 headerDiv.className = "w-full track-height bg-[#141416] border-y border-zinc-900 px-3 flex flex-col justify-center gap-1 text-[11px] font-mono shrink-0";
                 headerDiv.setAttribute('data-header-id', trackId);
                 
                 headerDiv.innerHTML = `
                     <div class="flex items-center justify-between">
-                        <span class="text-zinc-400 font-bold tracking-wide">CHANNEL ${numeroCanal}</span>
+                        <span class="text-zinc-400 font-bold tracking-wide">TRACK ${numeroTrack}</span>
                         <button class="btn-mute w-5 h-5 bg-zinc-800 border border-zinc-700 text-[10px] font-extrabold flex items-center justify-center hover:bg-zinc-700 transition text-zinc-400" data-track-id="${trackId}">M</button>
                     </div>
                     <div class="flex items-center gap-2">
@@ -184,11 +187,10 @@
                 headersColumn.appendChild(headerDiv);
                 lucide.createIcons();
 
-                // 2. CREAR NODE DE VOLUMEN (Tone.Volume) PARA ESTE CANAL
-                // Inicializado en -3dB aprox para un volumen cómodo
+                // 2. CREAR NODE DE VOLUMEN PARA ESTE TRACK
                 const channelVolumeNode = new Tone.Volume(-2).toDestination();
 
-                // 3. CREAR RENGLÓN DEL VISUALIZADOR (Derecha)
+                // 3. CREAR RENGLÓN DEL VISUALIZADOR (Derecha) - Alineación simétrica con pt-3
                 const trackRow = document.createElement('div');
                 trackRow.className = "w-full track-height bg-zinc-950/20 border-y border-zinc-900/40 relative pointer-events-auto shrink-0";
                 trackRow.setAttribute('data-track-id', trackId);
@@ -203,7 +205,6 @@
                     volumeValue: 0.8
                 });
 
-                // Asignar los Eventos al Panel de Control Recién Creado
                 configurarEventosHeader(trackId);
 
                 // Instanciar el bloque
@@ -215,7 +216,6 @@
             }
         });
 
-        // MANEJO DE EVENTOS DE VOLUMEN Y MUTE
         function configurarEventosHeader(trackId) {
             const trackData = tracksList.find(t => t.id === trackId);
             if (!trackData) return;
@@ -224,7 +224,6 @@
             const muteBtn = headerDom.querySelector('.btn-mute');
             const volumeSlider = headerDom.querySelector('.slider-volume');
 
-            // Evento Mute
             muteBtn.addEventListener('click', () => {
                 trackData.isMuted = !trackData.isMuted;
                 if (trackData.isMuted) {
@@ -240,14 +239,12 @@
                 }
             });
 
-            // Evento Slider Volumen (Conversión lineal a logarítmica dB)
             volumeSlider.addEventListener('input', (e) => {
                 const val = parseFloat(e.target.value);
                 trackData.volumeValue = val;
                 if (val === 0) {
                     trackData.volumeNode.volume.value = -Infinity;
                 } else {
-                    // Mapear rango 0-1 a escala en decibeles (-40dB a 0dB)
                     trackData.volumeNode.volume.value = Tone.gainToDb(val);
                 }
             });
@@ -280,7 +277,6 @@
             }
             lucide.createIcons();
 
-            // CONECTAR EL PLAYER AL NODO DE VOLUMEN ESPECÍFICO DE ESTA PISTA
             const player = new Tone.Player({ url: buffer, sync: false }).connect(targetTrack.volumeNode);
 
             const blockObject = {
@@ -490,7 +486,7 @@
         }
         requestAnimationFrame(actualizarPlayhead);
 
-        // ATAJOS TECLADO (CORTAR / ELIMINAR CON LIMPIEZA DE HEADER)
+        // ATAJOS TECLADO
         window.addEventListener('keydown', (e) => {
             if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'x') {
                 if (selectedBlockId !== null) {
@@ -508,16 +504,15 @@
                         if (!quedanBloquesEnTrack) {
                             const tIndex = tracksList.findIndex(t => t.id === trackIdAsociado);
                             if (tIndex !== -1) {
-                                // Remover nodo de volumen, fader izquierdo y renglón derecho
                                 tracksList[tIndex].volumeNode.dispose();
                                 tracksList[tIndex].domRow.remove(); 
                                 tracksList[tIndex].domHeader.remove(); 
                                 tracksList.splice(tIndex, 1); 
                                 
-                                // Re-etiquetar canales visibles restantes de forma ordenada
+                                // Re-etiquetar tracks visibles de forma ordenada: TRACK 1, TRACK 2...
                                 tracksList.forEach((t, idx) => {
                                     const spanLabel = t.domHeader.querySelector('span');
-                                    if (spanLabel) spanLabel.innerText = `CHANNEL ${idx + 1}`;
+                                    if (spanLabel) spanLabel.innerText = `TRACK ${idx + 1}`;
                                 });
                             }
                         }
