@@ -3,19 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sample Roll DAW - Slicing Update</title>
+    <title>Sample Roll DAW - Multi-track Update</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
-        .grid-bg {
-            background-size: 40px 40px;
-            background-image: 
-                linear-gradient(to right, #1a1a1a 1px, transparent 1px),
-                linear-gradient(to bottom, #1a1a1a 1px, transparent 1px);
+        /* Líneas divisorias verticales basadas en el zoom */
+        .vertical-grid {
+            background-size: var(--grid-width, 30px) 100%;
+            background-image: linear-gradient(to right, #1f1f23 1px, transparent 1px);
         }
         .custom-scroll::-webkit-scrollbar {
             height: 6px;
+            width: 6px;
         }
         .custom-scroll::-webkit-scrollbar-thumb {
             background: #27272a;
@@ -54,7 +54,7 @@
                 <span class="text-xs text-zinc-600 font-bold">BPM</span>
             </div>
 
-            <div class="flex items-center gap-2">
+            <div>
                 <label for="audio-upload" class="flex items-center gap-2 px-4 py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 rounded-none cursor-pointer text-sm font-medium transition text-white">
                     <i data-lucide="upload" class="w-4 h-4"></i>
                     Importar Audio
@@ -63,13 +63,19 @@
             </div>
         </div>
 
-        <div class="flex-1 relative bg-[#060607] overflow-x-auto overflow-y-hidden grid-bg custom-scroll cursor-crosshair" id="timeline-container">
+        <div id="ruler-container" class="w-full bg-[#101012] border-b border-zinc-900 h-8 overflow-hidden relative text-[10px] font-mono text-zinc-500 select-none">
+            <div id="time-ruler" class="absolute inset-y-0 left-0 w-[60000px] h-full vertical-grid flex items-end pb-1">
+                </div>
+        </div>
+
+        <div class="flex-1 relative bg-[#060607] overflow-auto vertical-grid custom-scroll" id="timeline-container">
             
             <div id="timeline-stretch" class="absolute inset-y-0 left-0 w-[60000px] pointer-events-none">
                 <div id="playhead" class="absolute top-0 bottom-0 w-[1.5px] bg-white shadow-[0_0_8px_rgba(255,255,255,0.8)] z-30 left-0"></div>
             </div>
 
-            <div id="workspace" class="absolute inset-y-0 left-0 w-[60000px] z-20 pointer-events-none"></div>
+            <div id="tracks-container" class="absolute top-0 left-0 w-[60000px] flex flex-col pt-2 gap-3 pointer-events-none">
+                </div>
         </div>
     </div>
 
@@ -86,15 +92,14 @@
         const txtZoom = document.getElementById('txt-zoom');
         const inputBpm = document.getElementById('input-bpm');
         const audioUpload = document.getElementById('audio-upload');
-        const workspace = document.getElementById('workspace');
+        const timeRuler = document.getElementById('time-ruler');
+        const tracksContainer = document.getElementById('tracks-container');
         const playhead = document.getElementById('playhead');
         const timelineContainer = document.getElementById('timeline-container');
+        const rulerContainer = document.getElementById('ruler-container');
 
-        let audioBuffer = null;
-        let originalFileName = "";
-        
-        // Estructura para soportar múltiples bloques creados por cortes
-        let blocksList = []; 
+        let tracksList = []; // Lista de renglones/tracks creados
+        let blocksList = []; // Todos los fragmentos de audio en el DAW
         let selectedBlockId = null;
         let blockIdCounter = 0;
         
@@ -107,6 +112,14 @@
         const basePixelsPerSecond = 100;
         let pixelsPerSecond = basePixelsPerSecond * currentZoomLevel;
 
+        // Ajustar cuadrícula visual
+        document.documentElement.style.setProperty('--grid-width', `${pixelsPerSecond}px`);
+
+        // Sincronizar el scroll horizontal de la barra de números con el trackpad
+        timelineContainer.addEventListener('scroll', () => {
+            rulerContainer.scrollLeft = timelineContainer.scrollLeft;
+        });
+
         // GESTIÓN DEL TEMPO
         Tone.Transport.bpm.value = 120;
         inputBpm.addEventListener('change', (e) => {
@@ -115,47 +128,54 @@
             Tone.Transport.bpm.value = bpm;
         });
 
-        // IMPORTAR AUDIO
+        // GENERAR LOS NÚMEROS DE LA REGLA SUPERIOR (1, 2, 3...)
+        function dibujarReglaDeTiempo() {
+            timeRuler.innerHTML = '';
+            // Crear marcas numéricas para los primeros 200 segundos/compases
+            for (let i = 0; i < 200; i++) {
+                const marker = document.createElement('div');
+                marker.className = "absolute border-l border-zinc-700 h-3 flex items-start pl-1";
+                marker.style.left = `${i * pixelsPerSecond}px`;
+                marker.innerText = i + 1;
+                timeRuler.appendChild(marker);
+            }
+        }
+        dibujarReglaDeTiempo();
+
+        // IMPORTAR AUDIO (CREA NUEVO RENGLÓN ABAJO)
         audioUpload.addEventListener('change', async (e) => {
             const file = e.target.files[0];
             if (!file) return;
             
             try {
                 const arrayBuffer = await file.arrayBuffer();
-                audioBuffer = await Tone.getContext().decodeAudioData(arrayBuffer);
-                originalFileName = file.name.toUpperCase();
+                const freshBuffer = await Tone.getContext().decodeAudioData(arrayBuffer);
+                const fileName = file.name.toUpperCase();
 
-                // Limpiar bloques anteriores al cargar un archivo nuevo entero
-                eliminarTodosLosBloques();
+                // 1. Crear un nuevo renglón (Pista) visual abajo
+                const trackId = tracksList.length;
+                const trackRow = document.createElement('div');
+                trackRow.className = "w-full h-16 bg-zinc-950/20 border-y border-zinc-900/40 relative pointer-events-auto";
+                trackRow.setAttribute('data-track-id', trackId);
+                tracksContainer.appendChild(trackRow);
+                
+                tracksList.push({ id: trackId, domRow: trackRow });
 
-                // Crear el bloque inicial completo
-                crearNuevoBloque(40, 0, audioBuffer.duration);
+                // 2. Instanciar el bloque de audio en este nuevo renglón vacío (Posición inicial en 0 segundos)
+                crearNuevoBloque(0, 0, freshBuffer.duration, trackId, freshBuffer, fileName);
             } catch (error) {
                 console.error("Error cargando el archivo:", error);
             }
         });
 
-        function eliminarTodosLosBloques() {
-            blocksList.forEach(b => {
-                if (b.player) b.player.dispose();
-                b.domElement.remove();
-            });
-            blocksList = [];
-            selectedBlockId = null;
-            Tone.Transport.cancel();
-        }
-
-        // INSTANCIAR NUEVO BLOQUE (SOPORTA AUDIO TOTAL O FRAGMENTOS / SLICES)
-        function crearNuevoBloque(posX, startTime, endTime) {
-            if (!audioBuffer) return;
-
+        // CREAR BLOQUE EN UN RENGLÓN ESPECÍFICO
+        function crearNuevoBloque(posX, startTime, endTime, trackId, buffer, name) {
             const id = blockIdCounter++;
             const duration = endTime - startTime;
             const blockWidth = duration * pixelsPerSecond;
 
-            // Elemento HTML del bloque (rounded-none)
             const dom = document.createElement('div');
-            dom.className = "absolute top-10 h-16 bg-[#121214] border border-zinc-800 rounded-none shadow-lg cursor-grab flex flex-col justify-between overflow-hidden pointer-events-auto";
+            dom.className = "absolute top-0 h-full bg-[#121214] border border-zinc-800 rounded-none shadow-md cursor-grab flex flex-col justify-between overflow-hidden z-20";
             dom.style.width = `${blockWidth}px`;
             dom.style.left = `${posX}px`;
             dom.setAttribute('data-id', id);
@@ -164,22 +184,27 @@
             canvas.className = "absolute inset-0 w-full h-full opacity-90 pointer-events-none";
             
             const label = document.createElement('div');
-            label.className = "relative z-10 p-1 text-[9px] font-mono tracking-wider text-zinc-400 bg-black/40 flex items-center gap-1 border-b border-zinc-900/40 backdrop-blur-sm pointer-events-none truncate";
-            label.innerHTML = `<i data-lucide="music" class="w-2.5 h-2.5 text-white"></i> ${originalFileName}`;
+            label.className = "relative z-10 p-1 text-[8px] font-mono tracking-wider text-zinc-400 bg-black/40 flex items-center gap-1 border-b border-zinc-900/40 backdrop-blur-sm pointer-events-none truncate";
+            label.innerHTML = `<i data-lucide="music" class="w-2.5 h-2.5 text-white"></i> ${name}`;
 
             dom.appendChild(canvas);
             dom.appendChild(label);
-            workspace.appendChild(dom);
+            
+            // Meter el bloque dentro del renglón correspondiente
+            const targetRow = tracksList[trackId].domRow;
+            targetRow.appendChild(dom);
             lucide.createIcons();
 
-            // Configurar reproductor independiente para esta sección de audio
-            const player = new Tone.Player({ url: audioBuffer, sync: false }).toDestination();
+            const player = new Tone.Player({ url: buffer, sync: false }).toDestination();
 
             const blockObject = {
                 id: id,
+                trackId: trackId,
                 domElement: dom,
                 canvasElement: canvas,
                 player: player,
+                buffer: buffer,
+                fileName: name,
                 leftX: posX,
                 audioStart: startTime,
                 audioEnd: endTime,
@@ -188,7 +213,6 @@
 
             blocksList.push(blockObject);
 
-            // Evento de Selección y Arrastre
             dom.addEventListener('mousedown', (e) => {
                 seleccionarBloque(id);
                 isDragging = true;
@@ -200,25 +224,24 @@
                 e.stopPropagation(); 
             });
 
-            // Forzar renderizado gráfico de la sección de onda correspondiente
             canvas.style.width = `${blockWidth}px`;
             requestAnimationFrame(() => {
                 renderizarSeccionOndaHD(blockObject);
             });
 
             reprogramarSecuenciadorGlobal();
-            seleccionarBloque(id); // Autoseleccionar al crear o cortar
+            seleccionarBloque(id);
         }
 
-        // SELECCIONAR UN BLOQUE ESPECÍFICO
+        // SELECCIÓN
         function seleccionarBloque(id) {
             selectedBlockId = id;
             blocksList.forEach(b => {
                 if (b.id === id) {
                     b.domElement.classList.remove('border-zinc-800');
-                    b.domElement.classList.add('border-white', 'shadow-[0_0_12px_rgba(255,255,255,0.15)]');
+                    b.domElement.classList.add('border-white', 'shadow-[0_0_12px_rgba(255,255,255,0.2)]');
                 } else {
-                    b.domElement.classList.remove('border-white', 'shadow-[0_0_12px_rgba(255,255,255,0.15)]');
+                    b.domElement.classList.remove('border-white', 'shadow-[0_0_12px_rgba(255,255,255,0.2)]');
                     b.domElement.classList.add('border-zinc-800');
                 }
             });
@@ -227,35 +250,34 @@
         function deseleccionarTodo() {
             selectedBlockId = null;
             blocksList.forEach(b => {
-                b.domElement.classList.remove('border-white', 'shadow-[0_0_12px_rgba(255,255,255,0.15)]');
+                b.domElement.classList.remove('border-white', 'shadow-[0_0_12px_rgba(255,255,255,0.2)]');
                 b.domElement.classList.add('border-zinc-800');
             });
         }
 
-        // RENDERIZAR SÓLO EL FRAGMENTO DE AUDIO DEL SAMPLE
+        // DIBUJAR ONDA HD
         function renderizarSeccionOndaHD(block) {
             const canvas = block.canvasElement;
             const ctx = canvas.getContext('2d');
             const dpr = window.devicePixelRatio || 1;
-            const width = parseFloat(block.domElement.style.width);
+            const width = block.audioDuration * pixelsPerSecond;
             const altoLienzo = 64;
 
             canvas.width = width * dpr;
             canvas.height = altoLienzo * dpr;
             ctx.scale(dpr, dpr);
 
-            const datosAudio = audioBuffer.getChannelData(0);
+            const datosAudio = block.buffer.getChannelData(0);
             const totalMuestrasGlobales = datosAudio.length;
 
-            // Mapear qué rango de muestras le pertenecen a este bloque cortado
-            const muestraInicio = Math.floor((block.audioStart / audioBuffer.duration) * totalMuestrasGlobales);
-            const muestraFin = Math.floor((block.audioEnd / audioBuffer.duration) * totalMuestrasGlobales);
+            const muestraInicio = Math.floor((block.audioStart / block.buffer.duration) * totalMuestrasGlobales);
+            const muestraFin = Math.floor((block.audioEnd / block.buffer.duration) * totalMuestrasGlobales);
             const totalMuestrasBloque = muestraFin - muestraInicio;
 
             const anchoBarra = 2;
             const espacio = 1;
             const totalBarras = Math.floor(width / (anchoBarra + espacio));
-            const pasoMuestra = Math.floor(totalMuestrasBloque / totalBarras);
+            const pasoMuestra = Math.floor(totalMuestrasBloque / totalBarras) || 1;
             const medioAlto = altoLienzo / 2;
 
             ctx.clearRect(0, 0, width, altoLienzo);
@@ -277,59 +299,57 @@
             }
         }
 
-        // REDIBUJAR TODO EL MOTOR POR ACCIÓN DE ZOOM
-        function refrescarDimensionesPorZoom() {
-            blocksList.forEach(b => {
-                const blockWidth = b.audioDuration * pixelsPerSecond;
-                b.domElement.style.width = `${blockWidth}px`;
-                b.domElement.style.left = `${b.leftX}px`;
-                b.canvasElement.style.width = `${blockWidth}px`;
-                renderizarSeccionOndaHD(b);
-            });
-            reprogramarSecuenciadorGlobal();
-        }
-
-        // ZOOM CONTROLES
+        // ZOOM ENGINE
         function cambiarZoom(delta) {
             const anteriorZoom = currentZoomLevel;
             currentZoomLevel = Math.max(0.1, Math.min(4.0, currentZoomLevel + delta));
             pixelsPerSecond = basePixelsPerSecond * currentZoomLevel;
             txtZoom.innerText = `${Math.round(currentZoomLevel * 100)}%`;
             
-            if (audioBuffer) {
-                // Re-escalar las posiciones X de los bloques proporcionalmente para mantener coherencia de tiempo
-                blocksList.forEach(b => {
-                    const tiempoX = b.leftX / (basePixelsPerSecond * anteriorZoom);
-                    b.leftX = tiempoX * pixelsPerSecond;
-                });
-                refrescarDimensionesPorZoom();
-            }
+            document.documentElement.style.setProperty('--grid-width', `${pixelsPerSecond}px`);
+            dibujarReglaDeTiempo();
+
+            blocksList.forEach(b => {
+                const tiempoX = b.leftX / (basePixelsPerSecond * anteriorZoom);
+                b.leftX = tiempoX * pixelsPerSecond;
+                b.domElement.style.width = `${b.audioDuration * pixelsPerSecond}px`;
+                b.domElement.style.left = `${b.leftX}px`;
+                b.canvasElement.style.width = `${b.audioDuration * pixelsPerSecond}px`;
+                renderizarSeccionOndaHD(b);
+            });
+
+            reprogramarSecuenciadorGlobal();
             playhead.style.left = `${Tone.Transport.seconds * pixelsPerSecond}px`;
         }
 
         btnZoomIn.addEventListener('click', () => cambiarZoom(0.1));
         btnZoomOut.addEventListener('click', () => cambiarZoom(-0.1));
 
-        // NAVEGACIÓN DE LÍNEA ROJA (PLAYHEAD)
+        // MOVER LA LÍNEA ROJA (DESDE LA REGLA O EL TIMELINE)
         timelineContainer.addEventListener('mousedown', (e) => {
             if (isDragging) return;
-            // Si el click es en el fondo vacío, deseleccionar bloques
-            if (e.target === timelineContainer || e.target === document.getElementById('timeline-stretch') || e.target === workspace) {
+            if (e.target === timelineContainer || e.target === document.getElementById('timeline-stretch') || e.target.parentNode === tracksContainer) {
                 deseleccionarTodo();
             }
             isMovingPlayhead = true;
             moverLineaA(e);
         });
 
+        rulerContainer.addEventListener('mousedown', (e) => {
+            isMovingPlayhead = true;
+            moverLineaA(e);
+        });
+
         function moverLineaA(e) {
-            const containerRect = timelineContainer.getBoundingClientRect();
+            const containerRect = rulerContainer.getBoundingClientRect();
             const clickX = e.clientX - containerRect.left + timelineContainer.scrollLeft;
             const nuevoTiempo = clickX / pixelsPerSecond;
+
+            if (nuevoTiempo < 0) return;
 
             Tone.Transport.seconds = nuevoTiempo;
             playhead.style.left = `${clickX}px`;
 
-            // Refrescar reproducción al vuelo si está activo
             if (Tone.Transport.state === "started") {
                 blocksList.forEach(b => b.player.stop());
                 blocksList.forEach(b => {
@@ -344,7 +364,7 @@
             }
         }
 
-        // MOVEMENT ENGINE (MOUSEMOVE)
+        // MOUSEMOVE MOUSEUP
         window.addEventListener('mousemove', (e) => {
             if (isDragging && draggedBlockData) {
                 const containerRect = timelineContainer.getBoundingClientRect();
@@ -370,10 +390,9 @@
             }
         });
 
-        // RE-PROGRAMACIÓN EN TIEMPO REAL DEL DAW
+        // REPROGRAMAR
         function reprogramarSecuenciadorGlobal() {
-            Tone.Transport.cancel(); // Vaciar agenda previa
-
+            Tone.Transport.cancel();
             blocksList.forEach(b => {
                 const tiempoInicioTimeline = b.leftX / pixelsPerSecond;
                 Tone.Transport.schedule((time) => {
@@ -382,7 +401,6 @@
             });
         }
 
-        // ANIMACIÓN DE PLAYHEAD
         function actualizarPlayhead() {
             if (Tone.Transport.state === "started" && !isMovingPlayhead) {
                 const currentLeft = Tone.Transport.seconds * pixelsPerSecond;
@@ -392,9 +410,8 @@
         }
         requestAnimationFrame(actualizarPlayhead);
 
-        // ATAJOS DE TECLADO: ELIMINAR (CTRL+X) Y CORTAR (C)
+        // TECLADO: CORTAR (C) Y BORRAR (CTRL+X)
         window.addEventListener('keydown', (e) => {
-            // Eliminar Bloque Seleccionado (Ctrl + X)
             if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'x') {
                 if (selectedBlockId !== null) {
                     e.preventDefault();
@@ -409,7 +426,6 @@
                 }
             }
 
-            // Cortar Bloque en la Línea (C)
             if (e.key.toLowerCase() === 'c' && !e.ctrlKey && !e.metaKey) {
                 if (selectedBlockId !== null) {
                     const block = blocksList.find(b => b.id === selectedBlockId);
@@ -418,16 +434,13 @@
                         const inicioBloqueTimeline = block.leftX / pixelsPerSecond;
                         const finBloqueTimeline = inicioBloqueTimeline + block.audioDuration;
 
-                        // Verificar si la línea roja cruza efectivamente el bloque seleccionado
                         if (tiempoLinea > inicioBloqueTimeline && tiempoLinea < finBloqueTimeline) {
                             const tiempoDeCorteRelativo = tiempoLinea - inicioBloqueTimeline;
                             const puntoCorteBuffer = block.audioStart + tiempoDeCorteRelativo;
 
-                            // Guardar datos del bloque viejo antes de fragmentarlo
                             const originalEnd = block.audioEnd;
                             const originalLeft = block.leftX;
 
-                            // Modificar extremo final del primer segmento resultante
                             block.audioEnd = puntoCorteBuffer;
                             block.audioDuration = puntoCorteBuffer - block.audioStart;
                             
@@ -436,23 +449,21 @@
                             block.canvasElement.style.width = `${nuevoAnchoPrimerBloque}px`;
                             renderizarSeccionOndaHD(block);
 
-                            // Crear el segundo segmento justo al lado
                             const nuevoPosX = originalLeft + nuevoAnchoPrimerBloque;
-                            crearNuevoBloque(nuevoPosX, puntoCorteBuffer, originalEnd);
+                            crearNuevoBloque(nuevoPosX, puntoCorteBuffer, originalEnd, block.trackId, block.buffer, block.fileName);
                         }
                     }
                 }
             }
         });
 
-        // TRANSPORT EVENTS
+        // REPRODUCCIÓN
         btnPlay.addEventListener('click', async () => {
             await Tone.start();
             if (Tone.Transport.state !== "started") {
                 Tone.Transport.start(Tone.now());
                 const tiempoActual = Tone.Transport.seconds;
 
-                // Comportamiento de Playback preciso con offsets sobre múltiples cortes simultáneos
                 blocksList.forEach(b => {
                     const blockStart = b.leftX / pixelsPerSecond;
                     const blockEnd = blockStart + b.audioDuration;
