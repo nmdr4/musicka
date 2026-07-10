@@ -153,12 +153,22 @@
             headersColumn.scrollTop = timelineContainer.scrollTop;
         });
 
-        Tone.Transport.bpm.value = 120;
-        inputBpm.addEventListener('change', (e) => {
-            let bpm = Math.max(60, Math.min(200, Number(e.target.value)));
-            e.target.value = bpm;
-            Tone.Transport.bpm.value = bpm;
-        });
+        // Modifica tu listener del input-bpm para que cambie la velocidad del audio:
+inputBpm.addEventListener('change', (e) => {
+    let bpm = Math.max(60, Math.min(200, Number(e.target.value)));
+    e.target.value = bpm;
+    Tone.Transport.bpm.value = bpm;
+
+    // Calcular la proporción de cambio (BPM Actual / BPM Base de 120)
+    const factorVelocidad = bpm / 120; 
+
+    // Ajustar la velocidad de reproducción de cada bloque asignado
+    blocksList.forEach(b => {
+        if (b.player) {
+            b.player.playbackRate = factorVelocidad;
+        }
+    });
+});
 
         function dibujarReglaDeTiempo() {
             timeRuler.innerHTML = '';
