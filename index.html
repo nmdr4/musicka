@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sample Roll DAW - White Ruler Fix</title>
+    <title>Sample Roll DAW - Centered Window</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
         .vertical-grid {
-            background-size: var(--grid-width, 30px) 100%;
+            background-size: var(--grid-width, 50px) 100%;
             background-image: linear-gradient(to right, #1f1f23 1px, transparent 1px);
         }
         .custom-scroll::-webkit-scrollbar {
@@ -25,9 +25,9 @@
         }
     </style>
 </head>
-<body class="bg-black text-zinc-200 h-screen w-screen overflow-hidden font-sans select-none m-0 p-0 flex flex-col">
+<body class="bg-[#0c0c0e] text-zinc-200 h-screen w-screen overflow-hidden font-sans select-none m-0 p-0 flex items-center justify-center">
 
-    <div class="flex-1 w-full h-full bg-[#0c0c0e] flex flex-col overflow-hidden">
+    <div class="w-[95vw] h-[85vh] max-w-6xl max-h-[750px] bg-[#060607] border border-zinc-800 rounded-lg shadow-2xl flex flex-col overflow-hidden relative">
         
         <div class="bg-[#121214] border-b border-zinc-900 p-4 flex items-center justify-between gap-4 z-50 shrink-0">
             
@@ -51,7 +51,7 @@
                 <button id="btn-zoom-out" class="p-1.5 hover:bg-zinc-800 rounded-none text-zinc-400 hover:text-white transition" title="Alejar Zoom">
                     <i data-lucide="zoom-out" class="w-4 h-4"></i>
                 </button>
-                <span id="txt-zoom" class="text-[10px] font-mono text-zinc-500 px-1 min-w-[35px] text-center">30%</span>
+                <span id="txt-zoom" class="text-[10px] font-mono text-zinc-500 px-1 min-w-[35px] text-center">50%</span>
                 <button id="btn-zoom-in" class="p-1.5 hover:bg-zinc-800 rounded-none text-zinc-400 hover:text-white transition" title="Acercar Zoom">
                     <i data-lucide="zoom-in" class="w-4 h-4"></i>
                 </button>
@@ -133,7 +133,7 @@
         let draggedBlockData = null;
         
         let isSnapActive = true; 
-        let currentZoomLevel = 0.3;
+        let currentZoomLevel = 0.5; // Cambiado de 0.3 a 0.5 predeterminado (50%)
         const basePixelsPerSecond = 100;
         let pixelsPerSecond = basePixelsPerSecond * currentZoomLevel;
 
@@ -160,19 +160,16 @@
             Tone.Transport.bpm.value = bpm;
         });
 
-        // REGLA DE TIEMPO CON NÚMEROS Y MARCAS BLANCAS
         function dibujarReglaDeTiempo() {
             timeRuler.innerHTML = '';
             
             for (let i = 0; i < 200; i++) {
                 const mainX = i * pixelsPerSecond;
                 
-                // Contenedor principal devuelto a color blanco
                 const marker = document.createElement('div');
                 marker.className = "absolute top-0 bottom-0 border-l border-white/40 flex flex-col justify-between pl-1 pb-0.5";
                 marker.style.left = `${mainX}px`;
                 
-                // Número en blanco con opacidad alta
                 const numSpan = document.createElement('span');
                 numSpan.className = "text-[10px] font-bold text-white pt-1 font-mono";
                 numSpan.innerText = i + 1;
@@ -180,7 +177,6 @@
                 
                 timeRuler.appendChild(marker);
 
-                // Sub-ticks/divisiones internas de fondo
                 const subDivisions = 4;
                 for (let s = 1; s < subDivisions; s++) {
                     const subX = mainX + (s * (pixelsPerSecond / subDivisions));
@@ -542,7 +538,7 @@
                         blocksList.splice(index, 1);
                         selectedBlockId = null;
 
-                        const quedanBloquesEnTrack = blocksList.some(b => b.trackId === trackIdAsociado);
+                        const quedanBloques EnTrack = blocksList.some(b => b.trackId === trackIdAsociado);
                         if (!quedanBloquesEnTrack) {
                             const tIndex = tracksList.findIndex(t => t.id === trackIdAsociado);
                             if (tIndex !== -1) {
