@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sample Roll DAW - Tracks Align Fix</title>
+    <title>Sample Roll DAW - Fullscreen & Snap</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
@@ -20,17 +20,16 @@
             background: #27272a;
             border-radius: 0px;
         }
-        /* Unificar altos de pista de forma estricta */
         .track-height {
             height: 64px;
         }
     </style>
 </head>
-<body class="bg-black text-zinc-200 h-screen flex flex-col justify-center items-center overflow-hidden font-sans select-none">
+<body class="bg-black text-zinc-200 h-screen w-screen overflow-hidden font-sans select-none m-0 p-0 flex flex-col">
 
-    <div class="w-11/12 max-w-6xl h-[80vh] bg-[#0c0c0e] border border-zinc-900 rounded-none shadow-2xl flex flex-col overflow-hidden">
+    <div class="flex-1 w-full h-full bg-[#0c0c0e] flex flex-col overflow-hidden">
         
-        <div class="bg-[#121214] border-b border-zinc-900 p-4 flex items-center justify-between gap-4 z-50">
+        <div class="bg-[#121214] border-b border-zinc-900 p-4 flex items-center justify-between gap-4 z-50 shrink-0">
             
             <div class="flex items-center gap-2">
                 <button id="btn-restart" class="p-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-none transition" title="Reiniciar al inicio">
@@ -38,6 +37,13 @@
                 </button>
                 <button id="btn-play" class="p-2 bg-white hover:bg-zinc-200 text-black rounded-none transition" title="Play / Pause">
                     <i data-lucide="play" class="w-4 h-4 fill-black"></i>
+                </button>
+                
+                <div class="w-[1px] h-6 bg-zinc-800 mx-1"></div>
+
+                <button id="btn-snap" class="p-2 bg-white border border-zinc-700 text-black rounded-none transition flex items-center justify-center gap-1.5" title="Ajustar a la cuadrícula (Snap)">
+                    <i data-lucide="magnet" class="w-4 h-4"></i>
+                    <span class="text-xs font-mono font-bold hidden sm:inline">SNAP</span>
                 </button>
             </div>
 
@@ -68,7 +74,7 @@
 
         <div class="flex-1 flex overflow-hidden relative">
             
-            <div class="w-48 bg-[#0f0f11] border-r border-zinc-900 flex flex-col z-40 select-none">
+            <div class="w-48 bg-[#0f0f11] border-r border-zinc-900 flex flex-col z-40 select-none shrink-0">
                 <div class="h-10 border-b border-zinc-900 shrink-0 bg-[#101012]"></div>
                 <div id="headers-column" class="flex-1 flex flex-col gap-3 pt-3 overflow-hidden">
                     </div>
@@ -102,6 +108,7 @@
 
         const btnPlay = document.getElementById('btn-play');
         const btnRestart = document.getElementById('btn-restart');
+        const btnSnap = document.getElementById('btn-snap');
         const btnZoomIn = document.getElementById('btn-zoom-in');
         const btnZoomOut = document.getElementById('btn-zoom-out');
         const txtZoom = document.getElementById('txt-zoom');
@@ -125,13 +132,23 @@
         let startX = 0;
         let draggedBlockData = null;
         
+        let isSnapActive = true; // El estado del imán por defecto activado
         let currentZoomLevel = 0.3;
         const basePixelsPerSecond = 100;
         let pixelsPerSecond = basePixelsPerSecond * currentZoomLevel;
 
         document.documentElement.style.setProperty('--grid-width', `${pixelsPerSecond}px`);
 
-        // Sincronizar scrolls verticales y horizontales a la perfección
+        // Alternar el imán (Snap)
+        btnSnap.addEventListener('click', () => {
+            isSnapActive = !isSnapActive;
+            if (isSnapActive) {
+                btnSnap.className = "p-2 bg-white border border-zinc-700 text-black rounded-none transition flex items-center justify-center gap-1.5";
+            } else {
+                btnSnap.className = "p-2 bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white rounded-none transition flex items-center justify-center gap-1.5";
+            }
+        });
+
         timelineContainer.addEventListener('scroll', () => {
             rulerContainer.scrollLeft = timelineContainer.scrollLeft;
             headersColumn.scrollTop = timelineContainer.scrollTop;
@@ -156,7 +173,6 @@
         }
         dibujarReglaDeTiempo();
 
-        // IMPORTAR AUDIO Y CREAR ENTRADAS DE TRACKS
         audioUpload.addEventListener('change', async (e) => {
             const file = e.target.files[0];
             if (!file) return;
@@ -169,7 +185,6 @@
                 const trackId = trackIdCounter++;
                 const numeroTrack = tracksList.length + 1;
 
-                // 1. CREAR PANEL IZQUIERDO CONTROLADOR (Track Header)
                 const headerDiv = document.createElement('div');
                 headerDiv.className = "w-full track-height bg-[#141416] border-y border-zinc-900 px-3 flex flex-col justify-center gap-1 text-[11px] font-mono shrink-0";
                 headerDiv.setAttribute('data-header-id', trackId);
@@ -187,10 +202,8 @@
                 headersColumn.appendChild(headerDiv);
                 lucide.createIcons();
 
-                // 2. CREAR NODE DE VOLUMEN PARA ESTE TRACK
                 const channelVolumeNode = new Tone.Volume(-2).toDestination();
 
-                // 3. CREAR RENGLÓN DEL VISUALIZADOR (Derecha) - Alineación simétrica con pt-3
                 const trackRow = document.createElement('div');
                 trackRow.className = "w-full track-height bg-zinc-950/20 border-y border-zinc-900/40 relative pointer-events-auto shrink-0";
                 trackRow.setAttribute('data-track-id', trackId);
@@ -206,10 +219,7 @@
                 });
 
                 configurarEventosHeader(trackId);
-
-                // Instanciar el bloque
                 crearNuevoBloque(0, 0, freshBuffer.duration, trackId, freshBuffer, fileName);
-                
                 audioUpload.value = '';
             } catch (error) {
                 console.error("Error cargando el archivo:", error);
@@ -228,14 +238,10 @@
                 trackData.isMuted = !trackData.isMuted;
                 if (trackData.isMuted) {
                     trackData.volumeNode.mute = true;
-                    muteBtn.classList.replace('bg-zinc-800', 'bg-red-600');
-                    muteBtn.classList.replace('text-zinc-400', 'text-white');
-                    muteBtn.classList.replace('border-zinc-700', 'border-red-500');
+                    muteBtn.className = "btn-mute w-5 h-5 bg-red-600 border border-red-500 text-[10px] font-extrabold flex items-center justify-center text-white";
                 } else {
                     trackData.volumeNode.mute = false;
-                    muteBtn.classList.replace('bg-red-600', 'bg-zinc-800');
-                    muteBtn.classList.replace('text-white', 'text-zinc-400');
-                    muteBtn.classList.replace('border-red-500', 'border-zinc-700');
+                    muteBtn.className = "btn-mute w-5 h-5 bg-zinc-800 border border-zinc-700 text-[10px] font-extrabold flex items-center justify-center hover:bg-zinc-700 transition text-zinc-400";
                 }
             });
 
@@ -420,9 +426,16 @@
 
         function moverLineaA(e) {
             const containerRect = rulerContainer.getBoundingClientRect();
-            const clickX = e.clientX - containerRect.left + timelineContainer.scrollLeft;
-            const nuevoTiempo = clickX / pixelsPerSecond;
+            let clickX = e.clientX - containerRect.left + timelineContainer.scrollLeft;
+            
+            // LÓGICA DEL IMÁN (SNAP TO GRID)
+            if (isSnapActive) {
+                // Encontrar la línea/segundo de cuadrícula más cercana
+                const lineaMasCercana = Math.round(clickX / pixelsPerSecond);
+                clickX = lineaMasCercana * pixelsPerSecond;
+            }
 
+            const nuevoTiempo = clickX / pixelsPerSecond;
             if (nuevoTiempo < 0) return;
 
             Tone.Transport.seconds = nuevoTiempo;
@@ -447,6 +460,15 @@
                 const containerRect = timelineContainer.getBoundingClientRect();
                 let newLeft = e.clientX - containerRect.left - startX + timelineContainer.scrollLeft;
                 if (newLeft < 0) newLeft = 0;
+                
+                // El imán también se aplica de forma fluida a los bloques al moverlos
+                if (isSnapActive) {
+                    const snapX = Math.round(newLeft / pixelsPerSecond) * pixelsPerSecond;
+                    // Margen de atracción para que no se sienta rígido al arrastrar
+                    if (Math.abs(newLeft - snapX) < (pixelsPerSecond * 0.4)) {
+                        newLeft = snapX;
+                    }
+                }
                 
                 draggedBlockData.leftX = newLeft;
                 draggedBlockData.domElement.style.left = `${newLeft}px`;
@@ -509,7 +531,6 @@
                                 tracksList[tIndex].domHeader.remove(); 
                                 tracksList.splice(tIndex, 1); 
                                 
-                                // Re-etiquetar tracks visibles de forma ordenada: TRACK 1, TRACK 2...
                                 tracksList.forEach((t, idx) => {
                                     const spanLabel = t.domHeader.querySelector('span');
                                     if (spanLabel) spanLabel.innerText = `TRACK ${idx + 1}`;
