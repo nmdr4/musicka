@@ -3,26 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sample Roll DAW - Refined Ruler & Fullscreen</title>
-    <!-- Tailwind CSS -->
+    <title>Sample Roll DAW - White Ruler Fix</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Tone.js para el motor de audio -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
-    <!-- Iconos -->
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
-        /* Cuadrícula vertical del área de pistas (Timeline) */
         .vertical-grid {
             background-size: var(--grid-width, 30px) 100%;
-            background-image: linear-gradient(to right, #18181b 1px, transparent 1px);
+            background-image: linear-gradient(to right, #1f1f23 1px, transparent 1px);
         }
-        
-        /* Estilo para la regla de tiempo superior (Alternancia de bloques/carriles limpios) */
-        .ruler-block-grid {
-            background-size: var(--grid-width, 30px) 100%;
-            background-image: linear-gradient(to right, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
-        }
-
         .custom-scroll::-webkit-scrollbar {
             height: 6px;
             width: 6px;
@@ -38,13 +27,10 @@
 </head>
 <body class="bg-black text-zinc-200 h-screen w-screen overflow-hidden font-sans select-none m-0 p-0 flex flex-col">
 
-    <!-- CONTENEDOR PRINCIPAL - 100% DE LA PÁGINA -->
-    <div class="flex-1 w-full h-full bg-[#09090b] flex flex-col overflow-hidden">
+    <div class="flex-1 w-full h-full bg-[#0c0c0e] flex flex-col overflow-hidden">
         
-        <!-- BARRA DE CONTROL -->
-        <div class="bg-[#111113] border-b border-zinc-900 p-4 flex items-center justify-between gap-4 z-50 shrink-0">
+        <div class="bg-[#121214] border-b border-zinc-900 p-4 flex items-center justify-between gap-4 z-50 shrink-0">
             
-            <!-- Controles de Transporte e Imán -->
             <div class="flex items-center gap-2">
                 <button id="btn-restart" class="p-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-none transition" title="Reiniciar al inicio">
                     <i data-lucide="rotate-ccw" class="w-4 h-4 text-white"></i>
@@ -53,17 +39,14 @@
                     <i data-lucide="play" class="w-4 h-4 fill-black"></i>
                 </button>
                 
-                <!-- Separador Visual -->
                 <div class="w-[1px] h-6 bg-zinc-800 mx-1"></div>
 
-                <!-- BOTÓN IMÁN (SNAP TO GRID) -->
                 <button id="btn-snap" class="p-2 bg-white border border-zinc-700 text-black rounded-none transition flex items-center justify-center gap-1.5" title="Ajustar a la cuadrícula (Snap)">
                     <i data-lucide="magnet" class="w-4 h-4"></i>
                     <span class="text-xs font-mono font-bold hidden sm:inline">SNAP</span>
                 </button>
             </div>
 
-            <!-- Controles de Zoom -->
             <div class="flex items-center gap-1 bg-zinc-900 p-1 rounded-none border border-zinc-800">
                 <button id="btn-zoom-out" class="p-1.5 hover:bg-zinc-800 rounded-none text-zinc-400 hover:text-white transition" title="Alejar Zoom">
                     <i data-lucide="zoom-out" class="w-4 h-4"></i>
@@ -74,14 +57,12 @@
                 </button>
             </div>
 
-            <!-- Ajuste de Tempo (BPM) -->
             <div class="flex items-center gap-3 bg-zinc-900 px-3 py-1.5 rounded-none border border-zinc-800">
                 <span class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Tempo</span>
                 <input id="input-bpm" type="number" value="120" min="60" max="200" class="w-12 bg-transparent text-white font-mono font-bold focus:outline-none text-center text-md">
                 <span class="text-xs text-zinc-600 font-bold">BPM</span>
             </div>
 
-            <!-- Input de Importar Archivo -->
             <div>
                 <label for="audio-upload" class="flex items-center gap-2 px-4 py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 rounded-none cursor-pointer text-sm font-medium transition text-white">
                     <i data-lucide="upload" class="w-4 h-4"></i>
@@ -91,39 +72,28 @@
             </div>
         </div>
 
-        <!-- ESTRUCTURA DEL SECUENCIADOR MULTI-PANEL -->
         <div class="flex-1 flex overflow-hidden relative">
             
-            <!-- PANEL IZQUIERDO: CONTROLES DE CANAL FIJOS -->
-            <div class="w-48 bg-[#0b0b0d] border-r border-zinc-900 flex flex-col z-40 select-none shrink-0">
-                <!-- Bloque superior del header unificado con el nuevo look gris oscuro de la regla -->
-                <div class="h-9 border-b border-zinc-900 shrink-0 bg-[#16161a]"></div>
+            <div class="w-48 bg-[#0f0f11] border-r border-zinc-900 flex flex-col z-40 select-none shrink-0">
+                <div class="h-10 border-b border-zinc-900 shrink-0 bg-[#101012]"></div>
                 <div id="headers-column" class="flex-1 flex flex-col gap-3 pt-3 overflow-hidden">
-                    <!-- Los paneles se inyectan aquí -->
-                </div>
+                    </div>
             </div>
 
-            <!-- PANEL DERECHO: GRID / TIMELINE -->
             <div class="flex-1 flex flex-col overflow-hidden relative">
                 
-                <!-- REGLA DE TIEMPO SUPERIOR ESTILO PROFESIONAL (Altura optimizada a h-9) -->
-                <div id="ruler-container" class="w-full bg-[#16161a] border-b border-zinc-900 h-9 overflow-hidden relative text-[11px] font-mono text-zinc-400 select-none">
-                    <div id="time-ruler" class="absolute inset-y-0 left-0 w-[60000px] h-full ruler-block-grid"></div>
+                <div id="ruler-container" class="w-full bg-[#0d0d0f] border-b border-zinc-900 h-10 overflow-hidden relative text-[10px] font-mono select-none">
+                    <div id="time-ruler" class="absolute inset-y-0 left-0 w-[60000px] h-full relative"></div>
                 </div>
 
-                <!-- ÁREA DE TRACKS -->
-                <div class="flex-1 relative bg-[#040405] overflow-auto vertical-grid custom-scroll" id="timeline-container">
+                <div class="flex-1 relative bg-[#060607] overflow-auto vertical-grid custom-scroll" id="timeline-container">
                     
-                    <!-- Lienzo General Expandible -->
                     <div id="timeline-stretch" class="absolute inset-y-0 left-0 w-[60000px] pointer-events-none">
-                        <!-- Línea de reproducción global -->
-                        <div id="playhead" class="absolute top-0 bottom-0 w-[1.5px] bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.8)] z-30 left-0"></div>
+                        <div id="playhead" class="absolute top-0 bottom-0 w-[1.5px] bg-white shadow-[0_0_8px_rgba(255,255,255,0.8)] z-30 left-0"></div>
                     </div>
 
-                    <!-- CONTENEDOR VERTICAL DE RENGLONES -->
                     <div id="tracks-container" class="absolute top-0 left-0 w-[60000px] flex flex-col pt-3 gap-3 pointer-events-none">
-                        <!-- Los renglones de pista se crean dinámicamente aquí -->
-                    </div>
+                        </div>
                 </div>
                 
             </div>
@@ -190,32 +160,35 @@
             Tone.Transport.bpm.value = bpm;
         });
 
-        // DIBUJAR LA REGLA ESTILO IMAGE 1 (Líneas superiores limpias con ticks o marcas inferiores)
+        // REGLA DE TIEMPO CON NÚMEROS Y MARCAS BLANCAS
         function dibujarReglaDeTiempo() {
             timeRuler.innerHTML = '';
+            
             for (let i = 0; i < 200; i++) {
-                // Contenedor del marcador de compás/segundo
+                const mainX = i * pixelsPerSecond;
+                
+                // Contenedor principal devuelto a color blanco
                 const marker = document.createElement('div');
-                marker.className = "absolute top-0 bottom-0 flex flex-col justify-between";
-                marker.style.left = `${i * pixelsPerSecond}px`;
-                marker.style.width = `${pixelsPerSecond}px`;
-
-                // Resaltar el primer número/bloque con un tono ligeramente diferente si se desea, o mantener uniforme limpio
-                const esPrimero = i === 0;
-
-                marker.innerHTML = `
-                    <div class="pt-1 pl-1.5 text-[10px] font-bold ${esPrimero ? 'text-red-400' : 'text-zinc-400'}">
-                        ${i + 1}
-                    </div>
-                    <!-- Ticks de subdivisión inferiores (Pequeñas líneas de guía en la base de la barra) -->
-                    <div class="w-full flex justify-between px-0 h-1.5 opacity-40">
-                        <div class="border-l border-zinc-300 h-full"></div>
-                        <div class="border-l border-zinc-500 h-1"></div>
-                        <div class="border-l border-zinc-500 h-1"></div>
-                        <div class="border-l border-zinc-500 h-1"></div>
-                    </div>
-                `;
+                marker.className = "absolute top-0 bottom-0 border-l border-white/40 flex flex-col justify-between pl-1 pb-0.5";
+                marker.style.left = `${mainX}px`;
+                
+                // Número en blanco con opacidad alta
+                const numSpan = document.createElement('span');
+                numSpan.className = "text-[10px] font-bold text-white pt-1 font-mono";
+                numSpan.innerText = i + 1;
+                marker.appendChild(numSpan);
+                
                 timeRuler.appendChild(marker);
+
+                // Sub-ticks/divisiones internas de fondo
+                const subDivisions = 4;
+                for (let s = 1; s < subDivisions; s++) {
+                    const subX = mainX + (s * (pixelsPerSecond / subDivisions));
+                    const subTick = document.createElement('div');
+                    subTick.className = "absolute bottom-0 border-l border-zinc-800 h-1.5";
+                    subTick.style.left = `${subX}px`;
+                    timeRuler.appendChild(subTick);
+                }
             }
         }
         dibujarReglaDeTiempo();
@@ -233,7 +206,7 @@
                 const numeroTrack = tracksList.length + 1;
 
                 const headerDiv = document.createElement('div');
-                headerDiv.className = "w-full track-height bg-[#111113] border-y border-zinc-900/60 px-3 flex flex-col justify-center gap-1 text-[11px] font-mono shrink-0";
+                headerDiv.className = "w-full track-height bg-[#141416] border-y border-zinc-900 px-3 flex flex-col justify-center gap-1 text-[11px] font-mono shrink-0";
                 headerDiv.setAttribute('data-header-id', trackId);
                 
                 headerDiv.innerHTML = `
@@ -252,7 +225,7 @@
                 const channelVolumeNode = new Tone.Volume(-2).toDestination();
 
                 const trackRow = document.createElement('div');
-                trackRow.className = "w-full track-height bg-zinc-950/10 border-y border-zinc-950 relative pointer-events-auto shrink-0";
+                trackRow.className = "w-full track-height bg-zinc-950/20 border-y border-zinc-900/40 relative pointer-events-auto shrink-0";
                 trackRow.setAttribute('data-track-id', trackId);
                 tracksContainer.appendChild(trackRow);
                 
@@ -309,7 +282,7 @@
             const blockWidth = duration * pixelsPerSecond;
 
             const dom = document.createElement('div');
-            dom.className = "absolute top-0 h-full bg-[#131316] border border-zinc-800 rounded-none shadow-md cursor-grab flex flex-col justify-between overflow-hidden z-20";
+            dom.className = "absolute top-0 h-full bg-[#121214] border border-zinc-800 rounded-none shadow-md cursor-grab flex flex-col justify-between overflow-hidden z-20";
             dom.style.width = `${blockWidth}px`;
             dom.style.left = `${posX}px`;
             dom.setAttribute('data-id', id);
@@ -373,9 +346,9 @@
             blocksList.forEach(b => {
                 if (b.id === id) {
                     b.domElement.classList.remove('border-zinc-800');
-                    b.domElement.classList.add('border-zinc-400', 'shadow-[0_0_12px_rgba(255,255,255,0.15)]');
+                    b.domElement.classList.add('border-white', 'shadow-[0_0_12px_rgba(255,255,255,0.2)]');
                 } else {
-                    b.domElement.classList.remove('border-zinc-400', 'shadow-[0_0_12px_rgba(255,255,255,0.15)]');
+                    b.domElement.classList.remove('border-white', 'shadow-[0_0_12px_rgba(255,255,255,0.2)]');
                     b.domElement.classList.add('border-zinc-800');
                 }
             });
@@ -384,7 +357,7 @@
         function deseleccionarTodo() {
             selectedBlockId = null;
             blocksList.forEach(b => {
-                b.domElement.classList.remove('border-zinc-400', 'shadow-[0_0_12px_rgba(255,255,255,0.15)]');
+                b.domElement.classList.remove('border-white', 'shadow-[0_0_12px_rgba(255,255,255,0.2)]');
                 b.domElement.classList.add('border-zinc-800');
             });
         }
@@ -414,7 +387,7 @@
             const medioAlto = altoLienzo / 2;
 
             ctx.clearRect(0, 0, width, altoLienzo);
-            ctx.fillStyle = '#e4e4e7';
+            ctx.fillStyle = '#ffffff';
 
             for (let i = 0; i < totalBarras; i++) {
                 let inicioMuestra = i * pasoMuestra + muestraInicio;
@@ -476,8 +449,10 @@
             let clickX = e.clientX - containerRect.left + timelineContainer.scrollLeft;
             
             if (isSnapActive) {
-                const lineaMasCercana = Math.round(clickX / pixelsPerSecond);
-                clickX = lineaMasCercana * pixelsPerSecond;
+                const subDivisiones = 4;
+                const fraccionPxl = pixelsPerSecond / subDivisiones;
+                const lineaMasCercana = Math.round(clickX / fraccionPxl);
+                clickX = lineaMasCercana * fraccionPxl;
             }
 
             const nuevoTiempo = clickX / pixelsPerSecond;
@@ -507,8 +482,10 @@
                 if (newLeft < 0) newLeft = 0;
                 
                 if (isSnapActive) {
-                    const snapX = Math.round(newLeft / pixelsPerSecond) * pixelsPerSecond;
-                    if (Math.abs(newLeft - snapX) < (pixelsPerSecond * 0.4)) {
+                    const subDivisiones = 4;
+                    const fraccionPxl = pixelsPerSecond / subDivisiones;
+                    const snapX = Math.round(newLeft / fraccionPxl) * fraccionPxl;
+                    if (Math.abs(newLeft - snapX) < (fraccionPxl * 0.4)) {
                         newLeft = snapX;
                     }
                 }
