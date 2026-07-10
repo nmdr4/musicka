@@ -328,16 +328,17 @@ inputBpm.addEventListener('change', (e) => {
             blocksList.push(blockObject);
 
             dom.addEventListener('mousedown', (e) => {
-                seleccionarBloque(id);
-                isDragging = true;
-                dom.classList.replace('cursor-grab', 'cursor-grabbing');
-                
-                const rect = dom.getBoundingClientRect();
-                startX = e.clientX - rect.left;
-                draggedBlockData = blockObject;
-                e.stopPropagation(); 
-            });
-
+    // Pasamos e.shiftKey para saber si la tecla Shift estaba presionada
+    seleccionarBloque(id, e.shiftKey); 
+    
+    isDragging = true;
+    dom.classList.replace('cursor-grab', 'cursor-grabbing');
+    
+    const rect = dom.getBoundingClientRect();
+    startX = e.clientX - rect.left;
+    draggedBlockData = blockObject;
+    e.stopPropagation(); 
+});
             canvas.style.width = `${blockWidth}px`;
             requestAnimationFrame(() => {
                 renderizarSeccionOndaHD(blockObject);
