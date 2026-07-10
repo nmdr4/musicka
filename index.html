@@ -123,7 +123,7 @@
 
         let tracksList = []; 
         let blocksList = []; 
-        let selectedBlockId = null;
+        let selectedBlockIds = []; // Ahora soporta múltiples IDs seleccionados
         let blockIdCounter = 0;
         let trackIdCounter = 0;
         let copiedBlockData = null;
@@ -347,26 +347,39 @@ inputBpm.addEventListener('change', (e) => {
             seleccionarBloque(id);
         }
 
-        function seleccionarBloque(id) {
-            selectedBlockId = id;
-            blocksList.forEach(b => {
-                if (b.id === id) {
-                    b.domElement.classList.remove('border-zinc-800');
-                    b.domElement.classList.add('border-white', 'shadow-[0_0_12px_rgba(255,255,255,0.2)]');
-                } else {
-                    b.domElement.classList.remove('border-white', 'shadow-[0_0_12px_rgba(255,255,255,0.2)]');
-                    b.domElement.classList.add('border-zinc-800');
-                }
-            });
+        function seleccionarBloque(id, shiftKey = false) {
+    if (shiftKey) {
+        // Si ya estaba seleccionado con Shift, lo quitamos (toggle)
+        if (selectedBlockIds.includes(id)) {
+            selectedBlockIds = selectedBlockIds.filter(bId => bId !== id);
+        } else {
+            // Si no estaba, lo agregamos a la lista existente
+            selectedBlockIds.push(id);
         }
+    } else {
+        // Clic normal sin Shift: limpiamos los demás y dejamos solo este
+        selectedBlockIds = [id];
+    }
 
-        function deseleccionarTodo() {
-            selectedBlockId = null;
-            blocksList.forEach(b => {
-                b.domElement.classList.remove('border-white', 'shadow-[0_0_12px_rgba(255,255,255,0.2)]');
-                b.domElement.classList.add('border-zinc-800');
-            });
+    // Actualizar los estilos visuales de TODOS los bloques en la pantalla
+    blocksList.forEach(b => {
+        if (selectedBlockIds.includes(b.id)) {
+            b.domElement.classList.remove('border-zinc-800');
+            b.domElement.classList.add('border-white', 'shadow-[0_0_12px_rgba(255,255,255,0.2)]');
+        } else {
+            b.domElement.classList.remove('border-white', 'shadow-[0_0_12px_rgba(255,255,255,0.2)]');
+            b.domElement.classList.add('border-zinc-800');
         }
+    });
+}
+
+function deseleccionarTodo() {
+    selectedBlockIds = []; // Vaciamos el array
+    blocksList.forEach(b => {
+        b.domElement.classList.remove('border-white', 'shadow-[0_0_12px_rgba(255,255,255,0.2)]');
+        b.domElement.classList.add('border-zinc-800');
+    });
+}
 
         function renderizarSeccionOndaHD(block) {
             const canvas = block.canvasElement;
