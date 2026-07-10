@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sample Roll DAW - Refined</title>
+    <title>Sample Roll DAW - Zero Latency</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Tone.js para el motor de audio -->
@@ -73,7 +73,7 @@
         </div>
 
         <!-- AREA DEL PIANO ROLL / TIMELINE -->
-        <div class="flex-1 relative bg-[#060607] overflow-x-auto overflow-y-hidden grid-bg custom-scroll" id="timeline-container">
+        <div class="flex-1 relative bg-[#060607] overflow-x-auto overflow-y-hidden grid-bg custom-scroll cursor-crosshair" id="timeline-container">
             
             <!-- Lienzo Dinámico Expandible -->
             <div id="timeline-stretch" class="absolute inset-y-0 left-0 w-[60000px] pointer-events-none">
@@ -82,12 +82,16 @@
             </div>
 
             <!-- CONTENEDOR DEL SAMPLE -->
-            <div id="workspace" class="absolute inset-y-0 left-0 w-[60000px] z-20"></div>
+            <div id="workspace" class="absolute inset-y-0 left-0 w-[60000px] z-20 pointer-events-none"></div>
         </div>
     </div>
 
     <!-- AUDIO & UI SCRIPT -->
     <script>
+        // OPTIMIZACIÓN DE LATENCIA CERO
+        Tone.getContext().lookAhead = 0; 
+        Tone.getContext().latencyHint = "interactive";
+
         lucide.createIcons();
 
         const btnPlay = document.getElementById('btn-play');
@@ -106,10 +110,10 @@
         let sampleBlock = null;
         
         let isDragging = false;
+        let isMovingPlayhead = false;
         let startX = 0;
         let blockLeft = 40; 
         
-        // ZOOM CONFIGURADO DE ENTRADA A 30%
         let currentZoomLevel = 0.3;
         const basePixelsPerSecond = 100;
         let pixelsPerSecond = basePixelsPerSecond * currentZoomLevel;
@@ -132,7 +136,8 @@
                 audioBuffer = await Tone.getContext().decodeAudioData(arrayBuffer);
                 
                 if (player) player.dispose();
-                player = new Tone.Player(audioBuffer).toDestination();
+                // Modo sincrónico nativo de latencia baja
+                player = new Tone.Player({ url: audioBuffer, sync: false }).toDestination();
 
                 actualizarLienzoYBloque(file.name);
             } catch (error) {
@@ -149,8 +154,7 @@
 
             if (!sampleBlock) {
                 sampleBlock = document.createElement('div');
-                // CAMBIO VISUAL: h-16 (más delgado) y top-10 (más arriba en el timeline)
-                sampleBlock.className = "absolute top-10 h-16 bg-[#121214] border border-zinc-800 rounded-md shadow-lg cursor-grab flex flex-col justify-between overflow-hidden transition-colors duration-150";
+                sampleBlock.className = "absolute top-10 h-16 bg-[#121214] border border-zinc-800 rounded-md shadow-lg cursor-grab flex flex-col justify-between overflow-hidden pointer-events-auto";
                 
                 const canvas = document.createElement('canvas');
                 canvas.id = "waveform-canvas";
@@ -170,10 +174,11 @@
                     sampleBlock.classList.replace('border-zinc-800', 'border-zinc-500');
                     const rect = sampleBlock.getBoundingClientRect();
                     startX = e.clientX - rect.left;
-                    e.stopPropagation();
+                    e.stopPropagation(); // Evita mover la barra al arrastrar el bloque
                 });
             }
 
+            // Aplicar tamaño
             sampleBlock.style.width = `${blockWidth}px`;
             sampleBlock.style.left = `${blockLeft}px`;
             
@@ -181,33 +186,37 @@
             label.innerHTML = `<i data-lucide="music" class="w-2.5 h-2.5 text-white"></i> ${fileName.toUpperCase()}`;
             lucide.createIcons();
 
+            // Renderizar forzando las medidas exactas antes de pintar para corregir borrosidad inicial
             const canvas = document.getElementById('waveform-canvas');
-            renderizarOndaHD(audioBuffer, canvas);
+            canvas.style.width = `${blockWidth}px`; 
+            
+            // Un micro-delay de frames asegura que el DOM asimiló el tamaño antes de calcular los picos HD
+            requestAnimationFrame(() => {
+                renderizarOndaHD(audioBuffer, canvas, blockWidth);
+            });
             
             sincronizarAudioConLinea();
         }
 
-        function renderizarOndaHD(buffer, canvas) {
+        function renderizarOndaHD(buffer, canvas, width) {
             const ctx = canvas.getContext('2d');
             const dpr = window.devicePixelRatio || 1;
-            const rect = canvas.getBoundingClientRect();
+            const altoLienzo = 64; // El alto en px de tu h-16
             
-            canvas.width = rect.width * dpr;
-            canvas.height = rect.height * dpr;
+            canvas.width = width * dpr;
+            canvas.height = altoLienzo * dpr;
             ctx.scale(dpr, dpr);
 
             const datosAudio = buffer.getChannelData(0);
             const totalMuestras = datosAudio.length;
-            const anchoLienzo = rect.width;
-            const altoLienzo = rect.height;
             
             const anchoBarra = 2;
             const espacio = 1;
-            const totalBarras = Math.floor(anchoLienzo / (anchoBarra + espacio));
+            const totalBarras = Math.floor(width / (anchoBarra + espacio));
             const pasoMuestra = Math.floor(totalMuestras / totalBarras);
             const medioAlto = altoLienzo / 2;
 
-            ctx.clearRect(0, 0, anchoLienzo, altoLienzo);
+            ctx.clearRect(0, 0, width, altoLienzo);
             ctx.fillStyle = '#ffffff';
 
             for (let i = 0; i < totalBarras; i++) {
@@ -219,7 +228,7 @@
                     if (valorActual > maximoValor) maximoValor = valorActual;
                 }
 
-                const altoBarra = maximoValor * medioAlto * 0.9;
+                const altoBarra = maximoValor * medioAlto * 0.85;
                 const x = i * (anchoBarra + espacio);
                 ctx.fillRect(x, medioAlto - altoBarra, anchoBarra, altoBarra * 2);
             }
@@ -234,53 +243,65 @@
             if (audioUpload.files[0] && audioBuffer) {
                 actualizarLienzoYBloque(audioUpload.files[0].name);
             }
+            // Reposicionar línea visualmente según el nuevo valor de Zoom
+            playhead.style.left = `${Tone.Transport.seconds * pixelsPerSecond}px`;
         }
 
         btnZoomIn.addEventListener('click', () => cambiarZoom(0.1));
         btnZoomOut.addEventListener('click', () => cambiarZoom(-0.1));
 
-        window.addEventListener('keydown', (e) => {
-            if (e.ctrlKey && (e.key === 'ArrowUp' || e.key === '=')) {
-                e.preventDefault();
-                cambiarZoom(0.1);
-            }
-            if (e.ctrlKey && (e.key === 'ArrowDown' || e.key === '-')) {
-                e.preventDefault();
-                cambiarZoom(-0.1);
-            }
+        // 5. MOVIMIENTO DEL BLOQUE Y LÍNEA DE TIEMPO (PLAYHEAD)
+        timelineContainer.addEventListener('mousedown', (e) => {
+            if (isDragging) return;
+            isMovingPlayhead = true;
+            moverLineaA(e);
         });
 
-        timelineContainer.addEventListener('wheel', (e) => {
-            if (e.ctrlKey) {
-                e.preventDefault();
-                cambiarZoom(e.deltaY < 0 ? 0.1 : -0.1);
-            }
-        }, { passive: false });
-
-
-        // 5. MOVIMIENTO DEL BLOQUE
-        window.addEventListener('mousemove', (e) => {
-            if (!isDragging || !sampleBlock) return;
-            
+        function moverLineaA(e) {
             const containerRect = timelineContainer.getBoundingClientRect();
-            let newLeft = e.clientX - containerRect.left - startX + timelineContainer.scrollLeft;
-            if (newLeft < 0) newLeft = 0;
-            
-            blockLeft = newLeft;
-            sampleBlock.style.left = `${blockLeft}px`;
-            
-            sincronizarAudioConLinea();
+            const clickX = e.clientX - containerRect.left + timelineContainer.scrollLeft;
+            const nuevoTiempo = clickX / pixelsPerSecond;
+
+            Tone.Transport.seconds = nuevoTiempo;
+            playhead.style.left = `${clickX}px`;
+
+            // Si estaba sonando, refrescar inmediatamente la posición del audio sobre la marcha
+            if (Tone.Transport.state === "started" && player) {
+                player.stop();
+                const tiempoInicioSg = blockLeft / pixelsPerSecond;
+                if (nuevoTiempo >= tiempoInicioSg && nuevoTiempo < tiempoInicioSg + audioBuffer.duration) {
+                    player.start(Tone.now(), nuevoTiempo - tiempoInicioSg);
+                }
+            }
+        }
+
+        window.addEventListener('mousemove', (e) => {
+            // Caso A: Arrastrando el Bloque de Audio
+            if (isDragging && sampleBlock) {
+                const containerRect = timelineContainer.getBoundingClientRect();
+                let newLeft = e.clientX - containerRect.left - startX + timelineContainer.scrollLeft;
+                if (newLeft < 0) newLeft = 0;
+                
+                blockLeft = newLeft;
+                sampleBlock.style.left = `${blockLeft}px`;
+                sincronizarAudioConLinea();
+            }
+            // Caso B: Arrastrando y moviendo la Línea Roja
+            if (isMovingPlayhead) {
+                moverLineaA(e);
+            }
         });
 
         window.addEventListener('mouseup', () => {
-            if (isDragging && sampleBlock) {
-                isDragging = false;
+            isDragging = false;
+            isMovingPlayhead = false;
+            if (sampleBlock) {
                 sampleBlock.classList.replace('cursor-grabbing', 'cursor-grab');
                 sampleBlock.classList.replace('border-zinc-500', 'border-zinc-800');
             }
         });
 
-        // 6. CONTROLADOR DE REPRODUCCIÓN (CORRECCIÓN DE PAUSA)
+        // 6. CONTROLADOR DE REPRODUCCIÓN (Sincronización milimétrica)
         function sincronizarAudioConLinea() {
             if (!player) return;
             Tone.Transport.cancel();
@@ -288,40 +309,36 @@
             const tiempoInicioSg = blockLeft / pixelsPerSecond;
             
             Tone.Transport.schedule((time) => {
-                // Solo dispara el play si el Transport arrancó antes o exactamente en el punto
+                // Si el transporte arranca desde el inicio o antes del bloque
                 player.start(time);
             }, tiempoInicioSg);
         }
 
         function actualizarPlayhead() {
-            if (Tone.Transport.state === "started") {
+            if (Tone.Transport.state === "started" && !isMovingPlayhead) {
                 const currentLeft = Tone.Transport.seconds * pixelsPerSecond;
                 playhead.style.left = `${currentLeft}px`;
-                
-                const rangoVisible = timelineContainer.scrollLeft + timelineContainer.clientWidth;
-                if (currentLeft > rangoVisible - 50) {
-                    timelineContainer.scrollLeft = currentLeft - 100;
-                }
             }
             requestAnimationFrame(actualizarPlayhead);
         }
         requestAnimationFrame(actualizarPlayhead);
 
-        // PLAY / PAUSA REAL CON CORRECCIÓN DE AUDIO
+        // PLAY / PAUSA
         btnPlay.addEventListener('click', async () => {
             await Tone.start();
             if (Tone.Transport.state !== "started") {
-                Tone.Transport.start();
-                // Si la línea ya pasó el bloque al darle play, reproducimos el audio desde el offset correcto
+                Tone.Transport.start(Tone.now());
                 const tiempoInicioSg = blockLeft / pixelsPerSecond;
-                if (Tone.Transport.seconds > tiempoInicioSg && Tone.Transport.seconds < tiempoInicioSg + audioBuffer.duration) {
-                    const offset = Tone.Transport.seconds - tiempoInicioSg;
+                const tiempoActual = Tone.Transport.seconds;
+
+                if (audioBuffer && tiempoActual > tiempoInicioSg && tiempoActual < tiempoInicioSg + audioBuffer.duration) {
+                    const offset = tiempoActual - tiempoInicioSg;
                     player.start(Tone.now(), offset);
                 }
                 btnPlay.innerHTML = `<i data-lucide="pause" class="w-4 h-4 text-black fill-black"></i>`;
             } else {
                 Tone.Transport.pause();
-                if (player) player.stop(); // ARREGLADO: Detiene el audio inmediatamente al pausar
+                if (player) player.stop();
                 btnPlay.innerHTML = `<i data-lucide="play" class="w-4 h-4 text-black fill-black"></i>`;
             }
             lucide.createIcons();
