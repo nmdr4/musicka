@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sample Roll DAW</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        /* Estilos para la cuadrícula del secuenciador */
+        .grid-bg {
+            background-size: 40px 40px;
+            background-image: 
+                linear-gradient(to right, #262626 1px, transparent 1px),
+                linear-gradient(to bottom, #262626 1px, transparent 1px);
+        }
+    </style>
+</head>
+<body class="bg-black text-gray-200 h-screen flex flex-col justify-center items-center overflow-hidden font-sans">
+
+    <div class="w-11/12 max-w-5xl h-[80vh] bg-[#141414] border border-zinc-800 rounded-xl shadow-2xl flex flex-col overflow-hidden">
+        
+        <div class="bg-[#1c1c1c] border-b border-zinc-800 p-4 flex items-center justify-between gap-4">
+            
+            <div class="flex items-center gap-2">
+                <button id="btn-back" class="p-2 bg-zinc-800 hover:bg-zinc-700 active:bg-zinc-600 rounded-lg transition" title="Regresar al inicio">
+                    <i data-lucide="skip-back" class="w-5 h-5 text-zinc-400"></i>
+                </button>
+                <button id="btn-play" class="p-2 bg-cyan-500 hover:bg-cyan-400 text-black font-bold rounded-lg transition" title="Play">
+                    <i data-lucide="play" class="w-5 h-5"></i>
+                </button>
+                <button id="btn-stop" class="p-2 bg-zinc-800 hover:bg-zinc-700 active:bg-zinc-600 rounded-lg transition" title="Stop">
+                    <i data-lucide="square" class="w-5 h-5 text-zinc-400"></i>
+                </button>
+            </div>
+
+            <div class="flex items-center gap-3 bg-zinc-900 px-3 py-1.5 rounded-lg border border-zinc-800">
+                <span class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Tempo</span>
+                <input id="input-bpm" type="number" value="120" min="60" max="200" class="w-16 bg-transparent text-cyan-400 font-mono font-bold focus:outline-none text-center text-lg">
+                <span class="text-xs text-zinc-600 font-bold">BPM</span>
+            </div>
+
+            <div>
+                <label for="audio-upload" class="flex items-center gap-2 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 hover:border-zinc-500 rounded-lg cursor-pointer text-sm font-medium transition text-zinc-300">
+                    <i data-lucide="upload" class="w-4 h-4 text-cyan-400"></i>
+                    Importar Audio (MP3/WAV)
+                </label>
+                <input id="audio-upload" type="file" accept="audio/*" class="hidden">
+            </div>
+        </div>
+
+        <div class="flex-1 relative bg-[#0d0d0d] overflow-hidden grid-bg select-none" id="timeline-container">
+            
+            <div id="playhead" class="absolute top-0 bottom-0 w-[2px] bg-red-500 shadow-[0_0_8px_#ef4444] z-30 left-0 pointer-events-none"></div>
+            
+            <div id="status-msg" class="absolute top-4 left-4 bg-zinc-900/80 border border-zinc-800 px-3 py-1.5 rounded-md text-xs text-zinc-400 z-10 pointer-events-none">
+                Arrastra un archivo para empezar
+            </div>
+
+            <div class="absolute inset-0 flex flex-col pointer-events-none opacity-20">
+                <div class="flex-1 border-b border-zinc-800"></div>
+                <div class="flex-1 border-b border-zinc-800"></div>
+                <div class="flex-1 border-b border-zinc-800"></div>
+                <div class="flex-1 border-b border-zinc-800"></div>
+            </div>
+
+            <div id="workspace" class="absolute inset-0 z-20"></div>
+        </div>
+    </div>
+
+    <script>
+        // Inicializar Iconos
+        lucide.createIcons();
+
+        // Elementos del DOM
+        const btnPlay = document.getElementById('btn-play');
+        const btnStop = document.getElementById('btn-stop');
+        const btnBack = document.getElementById('btn-back');
+        const inputBpm = document.getElementById('input-bpm');
+        const audioUpload = document.getElementById('audio-upload');
+        const workspace = document.getElementById('workspace');
+        const playhead = document.getElementById('playhead');
+        const statusMsg = document.getElementById('status-msg');
+        const timelineContainer = document.getElementById('timeline-container');
+
+        // Variables de Estado del DAW
+        let audioBuffer = null;
+        let player = null;
+        let sampleBlock = null;
+        
+        let isDragging = false;
+        let startX = 0;
+        let blockLeft = 120; // Posición inicial en píxeles (X)
+        const blockWidth = 200; // Ancho fijo del bloque por ahora
+
+        // 1. GESTIÓN DEL TEMPO (BPM)
+        Tone.Transport.bpm.value = 120;
+        inputBpm.addEventListener('change', (e) => {
+            let bpm = Math.max(60, Math.min(200, Number(e.target.value)));
+            e.target.value = bpm;
+            Tone.Transport.bpm.value = bpm;
+        });
+
+        // 2. IMPORTAR AUDIO
+        audioUpload.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            statusMsg.innerText = "Cargando y decodificando audio...";
+            
+            // Convertir archivo a ArrayBuffer para Tone.js
+            const arrayBuffer = await file.arrayBuffer();
+            audioBuffer = await Tone.getContext().decodeAudioData(arrayBuffer);
+            
+            // Crear el reproductor de audio asociado al buffer
+            if (player) player.dispose();
+            player = new Tone.Player(audioBuffer).toDestination();
+
+            statusMsg.innerText = `Sample cargado: ${file.name}`;
+            crearBloqueAudio(file.name);
+            sincronizarAudioConLinea();
+        });
+
+        // 3. CREAR Y MOVER EL BLOQUE EN EL PIANO ROLL
+        function crearBloqueAudio(fileName) {
+            // Si ya existía un bloque, lo borramos
+            if (sampleBlock) sampleBlock.remove();
+
+            sampleBlock = document.createElement('div');
+            sampleBlock.className = "absolute top-1/3 h-16 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-lg border border-cyan-300 shadow-[0_0_15px_rgba(6,182,212,0.4)] flex items-center px-3 cursor-grab text-black font-bold text-xs truncate select-none transition-shadow hover:shadow-[0_0_20px_rgba(6,182,212,0.6)]";
+            sampleBlock.style.width = `${blockWidth}px`;
+            sampleBlock.style.left = `${blockLeft}px`;
+            sampleBlock.innerHTML = `<i data-lucide="music" class="w-3.5 h-3.5 mr-1.5 shrink-0"></i> <span class="truncate">${fileName}</span>`;
+            
+            workspace.appendChild(sampleBlock);
+            lucide.createIcons();
+
+            // Eventos para Arrastrar (Drag & Drop) en el eje X
+            sampleBlock.addEventListener('mousedown', (e) => {
+                isDragging = true;
+                sampleBlock.classList.replace('cursor-grab', 'cursor-grabbing');
+                startX = e.clientX - blockLeft;
+                e.stopPropagation();
+            });
+        }
+
+        window.addEventListener('mousemove', (e) => {
+            if (!isDragging || !sampleBlock) return;
+            
+            // Calculamos la nueva posición X dentro de la ventana
+            const containerRect = timelineContainer.getBoundingClientRect();
+            let newLeft = e.clientX - containerRect.left - startX;
+            
+            // Limitar los bordes de la ventana
+            if (newLeft < 0) newLeft = 0;
+            if (newLeft > containerRect.width - blockWidth) newLeft = containerRect.width - blockWidth;
+            
+            blockLeft = newLeft;
+            sampleBlock.style.left = `${blockLeft}px`;
+            
+            // Si movemos el bloque, recalculamos cuándo debe sonar
+            sincronizarAudioConLinea();
+        });
+
+        window.addEventListener('mouseup', () => {
+            if (isDragging && sampleBlock) {
+                isDragging = false;
+                sampleBlock.classList.replace('cursor-grabbing', 'cursor-grab');
+            }
+        });
+
+        // 4. LOGICA DE TIEMPO Y REPRODUCCIÓN (Sincronización)
+        function sincronizarAudioConLinea() {
+            if (!player) return;
+
+            // Cancelar eventos de audio anteriores para que no se dupliquen
+            Tone.Transport.cancel();
+
+            // Convertimos los píxeles del bloque a "Segundos" en el Timeline.
+            // Regla matemática simple: 100 píxeles = 1 segundo de tiempo.
+            const tiempoInicioSg = blockLeft / 100;
+
+            // Programamos el trigger en el Timeline global
+            Tone.Transport.schedule((time) => {
+                player.start(time);
+            }, tiempoInicioSg);
+        }
+
+        // Animación de la línea roja (Playhead)
+        function actualizarPlayhead() {
+            if (Tone.Transport.state === "started") {
+                // Si 1 segundo son 100 píxeles, multiplicamos el tiempo actual por 100
+                const currentLeft = Tone.Transport.seconds * 100;
+                playhead.style.left = `${currentLeft}px`;
+                
+                // Si la línea se sale de la pantalla visible, regresa al inicio automáticamente
+                if (currentLeft > timelineContainer.clientWidth) {
+                    resetTransport();
+                }
+            }
+            requestAnimationFrame(actualizarPlayhead);
+        }
+        requestAnimationFrame(actualizarPlayhead);
+
+        // Controles de Transporte (Botones)
+        btnPlay.addEventListener('click', async () => {
+            await Tone.start(); // Requerido por navegadores
+            if (Tone.Transport.state !== "started") {
+                Tone.Transport.start();
+                btnPlay.innerHTML = `<i data-lucide="pause" class="w-5 h-5 text-black"></i>`;
+            } else {
+                Tone.Transport.pause();
+                btnPlay.innerHTML = `<i data-lucide="play" class="w-5 h-5 text-black"></i>`;
+            }
+            lucide.createIcons();
+        });
+
+        function resetTransport() {
+            Tone.Transport.stop();
+            if (player) player.stop();
+            playhead.style.left = "0px";
+            btnPlay.innerHTML = `<i data-lucide="play" class="w-5 h-5 text-black"></i>`;
+            lucide.createIcons();
+        }
+
+        btnStop.addEventListener('click', resetTransport);
+        btnBack.addEventListener('click', resetTransport);
+
+    </script>
+</body>
+</html>
