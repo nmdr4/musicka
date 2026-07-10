@@ -427,13 +427,26 @@
         btnZoomOut.addEventListener('click', () => cambiarZoom(-0.1));
 
         timelineContainer.addEventListener('mousedown', (e) => {
-            if (isDragging) return;
-            if (e.target === timelineContainer || e.target === document.getElementById('timeline-stretch') || e.target.parentNode === tracksContainer) {
-                deseleccionarTodo();
-            }
-            isMovingPlayhead = true;
-            moverLineaA(e);
-        });
+    if (isDragging) return;
+
+    // DETECTAR CLIC EN EL SCROLLBAR INFERIOR
+    // Si la posición Y del clic es mayor a la altura visible del contenedor,
+    // significa que el usuario está interactuando con la barra de scroll.
+    const rect = timelineContainer.getBoundingClientRect();
+    const clickYDentroDelDiv = e.clientY - rect.top;
+    
+    if (clickYDentroDelDiv >= timelineContainer.clientHeight) {
+        // Es un clic en el scrollbar. Salimos de la función y dejamos que el navegador haga lo suyo.
+        return; 
+    }
+
+    if (e.target === timelineContainer || e.target === document.getElementById('timeline-stretch') || e.target.parentNode === tracksContainer) {
+        deseleccionarTodo();
+    }
+    
+    isMovingPlayhead = true;
+    moverLineaA(e);
+});
 
         rulerContainer.addEventListener('mousedown', (e) => {
             isMovingPlayhead = true;
