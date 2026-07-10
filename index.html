@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sample Roll DAW - Zoom 50% & Drag and Drop</title>
+    <title>Sample Roll DAW - Fixed Window</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
@@ -23,19 +23,12 @@
         .track-height {
             height: 64px;
         }
-        /* Efecto visual al arrastrar archivo sobre el timeline */
-        .drag-over {
-            background-color: rgba(255, 255, 255, 0.03) !important;
-            outline: 2px dashed #3f3f46 !important;
-            outline-offset: -4px;
-        }
     </style>
 </head>
-<body class="bg-black text-zinc-200 h-screen w-screen overflow-hidden font-sans select-none m-0 p-0 flex items-center justify-center">
+<body class="bg-[#0c0c0e] text-zinc-200 h-screen w-screen overflow-hidden font-sans select-none m-0 p-0 flex items-center justify-center">
 
-    <div class="w-11/12 max-w-6xl h-[80vh] bg-[#0c0c0e] border border-zinc-900 rounded-none shadow-2xl flex flex-col overflow-hidden relative">
+    <div class="w-[95vw] h-[85vh] max-w-6xl max-h-[750px] bg-[#060607] border border-zinc-800 rounded-lg shadow-2xl flex flex-col overflow-hidden relative">
         
-        <!-- BARRA DE CONTROL SUPERIOR -->
         <div class="bg-[#121214] border-b border-zinc-900 p-4 flex items-center justify-between gap-4 z-50 shrink-0">
             
             <div class="flex items-center gap-2">
@@ -44,6 +37,13 @@
                 </button>
                 <button id="btn-play" class="p-2 bg-white hover:bg-zinc-200 text-black rounded-none transition" title="Play / Pause">
                     <i data-lucide="play" class="w-4 h-4 fill-black"></i>
+                </button>
+                
+                <div class="w-[1px] h-6 bg-zinc-800 mx-1"></div>
+
+                <button id="btn-snap" class="p-2 bg-white border border-zinc-700 text-black rounded-none transition flex items-center justify-center gap-1.5" title="Ajustar a la cuadrícula (Snap)">
+                    <i data-lucide="magnet" class="w-4 h-4"></i>
+                    <span class="text-xs font-mono font-bold hidden sm:inline">SNAP</span>
                 </button>
             </div>
 
@@ -63,39 +63,37 @@
                 <span class="text-xs text-zinc-600 font-bold">BPM</span>
             </div>
 
-            <!-- BOTÓN IMPORTAR COMPACTO (SÓLO ICONO) -->
             <div>
-                <label for="audio-upload" class="flex items-center justify-center p-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 rounded-none cursor-pointer transition text-white" title="Importar Audio">
+                <label for="audio-upload" class="flex items-center gap-2 px-4 py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 rounded-none cursor-pointer text-sm font-medium transition text-white">
                     <i data-lucide="upload" class="w-4 h-4"></i>
+                    Importar Audio
                 </label>
                 <input id="audio-upload" type="file" accept="audio/*" class="hidden">
             </div>
         </div>
 
-        <!-- ESTRUCTURA DEL SECUENCIADOR MULTI-PANEL -->
         <div class="flex-1 flex overflow-hidden relative">
             
-            <!-- PANEL IZQUIERDO: CONTROLES DE PISTA (HEADERS) -->
             <div class="w-48 bg-[#0f0f11] border-r border-zinc-900 flex flex-col z-40 select-none shrink-0">
                 <div class="h-10 border-b border-zinc-900 shrink-0 bg-[#101012]"></div>
-                <div id="headers-column" class="flex-1 flex flex-col gap-3 pt-3 overflow-hidden"></div>
+                <div id="headers-column" class="flex-1 flex flex-col gap-3 pt-3 overflow-hidden">
+                    </div>
             </div>
 
-            <!-- PANEL DERECHO: CUADRÍCULA / REGLA / LÍNEA -->
             <div class="flex-1 flex flex-col overflow-hidden relative">
                 
-                <div id="ruler-container" class="w-full bg-[#101012] border-b border-zinc-900 h-10 overflow-hidden relative text-[10px] font-mono text-zinc-500 select-none">
-                    <div id="time-ruler" class="absolute inset-y-0 left-0 w-[60000px] h-full vertical-grid flex items-end pb-1"></div>
+                <div id="ruler-container" class="w-full bg-[#0d0d0f] border-b border-zinc-900 h-10 overflow-hidden relative text-[10px] font-mono select-none">
+                    <div id="time-ruler" class="absolute inset-y-0 left-0 w-[60000px] h-full relative"></div>
                 </div>
 
-                <!-- ÁREA DE DETALLE (TIMELINE) -> Soporta arrastrar archivos aquí -->
                 <div class="flex-1 relative bg-[#060607] overflow-auto vertical-grid custom-scroll" id="timeline-container">
                     
                     <div id="timeline-stretch" class="absolute inset-y-0 left-0 w-[60000px] pointer-events-none">
                         <div id="playhead" class="absolute top-0 bottom-0 w-[1.5px] bg-white shadow-[0_0_8px_rgba(255,255,255,0.8)] z-30 left-0"></div>
                     </div>
 
-                    <div id="tracks-container" class="absolute top-0 left-0 w-[60000px] flex flex-col pt-3 gap-3 pointer-events-none"></div>
+                    <div id="tracks-container" class="absolute top-0 left-0 w-[60000px] flex flex-col pt-3 gap-3 pointer-events-none">
+                        </div>
                 </div>
                 
             </div>
@@ -110,6 +108,7 @@
 
         const btnPlay = document.getElementById('btn-play');
         const btnRestart = document.getElementById('btn-restart');
+        const btnSnap = document.getElementById('btn-snap');
         const btnZoomIn = document.getElementById('btn-zoom-in');
         const btnZoomOut = document.getElementById('btn-zoom-out');
         const txtZoom = document.getElementById('txt-zoom');
@@ -133,12 +132,21 @@
         let startX = 0;
         let draggedBlockData = null;
         
-        // 1. CAMBIO AQUÍ: Zoom por defecto al 50% (0.5)
-        let currentZoomLevel = 0.5;
+        let isSnapActive = true; 
+        let currentZoomLevel = 0.5; 
         const basePixelsPerSecond = 100;
         let pixelsPerSecond = basePixelsPerSecond * currentZoomLevel;
 
         document.documentElement.style.setProperty('--grid-width', `${pixelsPerSecond}px`);
+
+        btnSnap.addEventListener('click', () => {
+            isSnapActive = !isSnapActive;
+            if (isSnapActive) {
+                btnSnap.className = "p-2 bg-white border border-zinc-700 text-black rounded-none transition flex items-center justify-center gap-1.5";
+            } else {
+                btnSnap.className = "p-2 bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white rounded-none transition flex items-center justify-center gap-1.5";
+            }
+        });
 
         timelineContainer.addEventListener('scroll', () => {
             rulerContainer.scrollLeft = timelineContainer.scrollLeft;
@@ -154,19 +162,37 @@
 
         function dibujarReglaDeTiempo() {
             timeRuler.innerHTML = '';
+            
             for (let i = 0; i < 200; i++) {
+                const mainX = i * pixelsPerSecond;
+                
                 const marker = document.createElement('div');
-                marker.className = "absolute border-l border-zinc-700 h-3 flex items-start pl-1";
-                marker.style.left = `${i * pixelsPerSecond}px`;
-                marker.innerText = i + 1;
+                marker.className = "absolute top-0 bottom-0 border-l border-white/40 flex flex-col justify-between pl-1 pb-0.5";
+                marker.style.left = `${mainX}px`;
+                
+                const numSpan = document.createElement('span');
+                numSpan.className = "text-[10px] font-bold text-white pt-1 font-mono";
+                numSpan.innerText = i + 1;
+                marker.appendChild(numSpan);
+                
                 timeRuler.appendChild(marker);
+
+                const subDivisions = 4;
+                for (let s = 1; s < subDivisions; s++) {
+                    const subX = mainX + (s * (pixelsPerSecond / subDivisions));
+                    const subTick = document.createElement('div');
+                    subTick.className = "absolute bottom-0 border-l border-zinc-800 h-1.5";
+                    subTick.style.left = `${subX}px`;
+                    timeRuler.appendChild(subTick);
+                }
             }
         }
         dibujarReglaDeTiempo();
 
-        // FUNCIÓN CORE PARA PROCESAR EL ARCHIVO DE AUDIO (Reutilizable para Input y Drag&Drop)
-        async function procesarArchivoDeAudio(file) {
+        audioUpload.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
             if (!file) return;
+            
             try {
                 const arrayBuffer = await file.arrayBuffer();
                 const freshBuffer = await Tone.getContext().decodeAudioData(arrayBuffer);
@@ -175,7 +201,6 @@
                 const trackId = trackIdCounter++;
                 const numeroTrack = tracksList.length + 1;
 
-                // 1. Panel Izquierdo Controlador (Header)
                 const headerDiv = document.createElement('div');
                 headerDiv.className = "w-full track-height bg-[#141416] border-y border-zinc-900 px-3 flex flex-col justify-center gap-1 text-[11px] font-mono shrink-0";
                 headerDiv.setAttribute('data-header-id', trackId);
@@ -193,10 +218,8 @@
                 headersColumn.appendChild(headerDiv);
                 lucide.createIcons();
 
-                // 2. Nodo de volumen
                 const channelVolumeNode = new Tone.Volume(-2).toDestination();
 
-                // 3. Fila del Visualizador (Derecha)
                 const trackRow = document.createElement('div');
                 trackRow.className = "w-full track-height bg-zinc-950/20 border-y border-zinc-900/40 relative pointer-events-auto shrink-0";
                 trackRow.setAttribute('data-track-id', trackId);
@@ -212,43 +235,10 @@
                 });
 
                 configurarEventosHeader(trackId);
-
-                // Crear el Bloque de Audio Inicial
                 crearNuevoBloque(0, 0, freshBuffer.duration, trackId, freshBuffer, fileName);
+                audioUpload.value = '';
             } catch (error) {
-                console.error("Error cargando el archivo de audio:", error);
-            }
-        }
-
-        // Importación tradicional por click
-        audioUpload.addEventListener('change', async (e) => {
-            await procesarArchivoDeAudio(e.target.files[0]);
-            audioUpload.value = '';
-        });
-
-        // EVENTOS PARA DRAG AND DROP (Arrastrar y soltar archivos en el Timeline)
-        timelineContainer.addEventListener('dragover', (e) => {
-            e.preventDefault(); // Necesario para permitir soltar el elemento
-            timelineContainer.classList.add('drag-over');
-        });
-
-        timelineContainer.addEventListener('dragleave', () => {
-            timelineContainer.classList.remove('drag-over');
-        });
-
-        timelineContainer.addEventListener('drop', async (e) => {
-            e.preventDefault();
-            timelineContainer.classList.remove('drag-over');
-            
-            const archivos = e.dataTransfer.files;
-            if (archivos.length > 0) {
-                // Filtrar para asegurarnos que sea un archivo de audio
-                if (archivos[0].type.startsWith('audio/')) {
-                    await Tone.start(); // Asegura el contexto de audio si no se ha interactuado antes
-                    await procesarArchivoDeAudio(archivos[0]);
-                } else {
-                    alert("Por favor, arrastra únicamente archivos de audio (MP3, WAV, etc.)");
-                }
+                console.error("Error cargando el archivo:", error);
             }
         });
 
@@ -264,14 +254,10 @@
                 trackData.isMuted = !trackData.isMuted;
                 if (trackData.isMuted) {
                     trackData.volumeNode.mute = true;
-                    muteBtn.classList.replace('bg-zinc-800', 'bg-red-600');
-                    muteBtn.classList.replace('text-zinc-400', 'text-white');
-                    muteBtn.classList.replace('border-zinc-700', 'border-red-500');
+                    muteBtn.className = "btn-mute w-5 h-5 bg-red-600 border border-red-500 text-[10px] font-extrabold flex items-center justify-center text-white";
                 } else {
                     trackData.volumeNode.mute = false;
-                    muteBtn.classList.replace('bg-red-600', 'bg-zinc-800');
-                    muteBtn.classList.replace('text-white', 'text-zinc-400');
-                    muteBtn.classList.replace('border-red-500', 'border-zinc-700');
+                    muteBtn.className = "btn-mute w-5 h-5 bg-zinc-800 border border-zinc-700 text-[10px] font-extrabold flex items-center justify-center hover:bg-zinc-700 transition text-zinc-400";
                 }
             });
 
@@ -456,9 +442,16 @@
 
         function moverLineaA(e) {
             const containerRect = rulerContainer.getBoundingClientRect();
-            const clickX = e.clientX - containerRect.left + timelineContainer.scrollLeft;
-            const nuevoTiempo = clickX / pixelsPerSecond;
+            let clickX = e.clientX - containerRect.left + timelineContainer.scrollLeft;
+            
+            if (isSnapActive) {
+                const subDivisiones = 4;
+                const fraccionPxl = pixelsPerSecond / subDivisiones;
+                const lineaMasCercana = Math.round(clickX / fraccionPxl);
+                clickX = lineaMasCercana * fraccionPxl;
+            }
 
+            const nuevoTiempo = clickX / pixelsPerSecond;
             if (nuevoTiempo < 0) return;
 
             Tone.Transport.seconds = nuevoTiempo;
@@ -483,6 +476,15 @@
                 const containerRect = timelineContainer.getBoundingClientRect();
                 let newLeft = e.clientX - containerRect.left - startX + timelineContainer.scrollLeft;
                 if (newLeft < 0) newLeft = 0;
+                
+                if (isSnapActive) {
+                    const subDivisiones = 4;
+                    const fraccionPxl = pixelsPerSecond / subDivisiones;
+                    const snapX = Math.round(newLeft / fraccionPxl) * fraccionPxl;
+                    if (Math.abs(newLeft - snapX) < (fraccionPxl * 0.4)) {
+                        newLeft = snapX;
+                    }
+                }
                 
                 draggedBlockData.leftX = newLeft;
                 draggedBlockData.domElement.style.left = `${newLeft}px`;
@@ -522,6 +524,7 @@
         }
         requestAnimationFrame(actualizarPlayhead);
 
+        // ATAJOS TECLADO
         window.addEventListener('keydown', (e) => {
             if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'x') {
                 if (selectedBlockId !== null) {
