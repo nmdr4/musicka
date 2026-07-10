@@ -3,25 +3,32 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sample Roll DAW</title>
+    <title>Sample Roll DAW - Waveform Update</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
-        /* Estilos para la cuadrícula del secuenciador */
         .grid-bg {
             background-size: 40px 40px;
             background-image: 
-                linear-gradient(to right, #262626 1px, transparent 1px),
-                linear-gradient(to bottom, #262626 1px, transparent 1px);
+                linear-gradient(to right, #202020 1px, transparent 1px),
+                linear-gradient(to bottom, #202020 1px, transparent 1px);
+        }
+        /* Esconder la barra de scroll horizontal pero permitir el movimiento */
+        .custom-scroll::-webkit-scrollbar {
+            height: 6px;
+        }
+        .custom-scroll::-webkit-scrollbar-thumb {
+            background: #27272a;
+            border-radius: 3px;
         }
     </style>
 </head>
 <body class="bg-black text-gray-200 h-screen flex flex-col justify-center items-center overflow-hidden font-sans">
 
-    <div class="w-11/12 max-w-5xl h-[80vh] bg-[#141414] border border-zinc-800 rounded-xl shadow-2xl flex flex-col overflow-hidden">
+    <div class="w-11/12 max-w-5xl h-[80vh] bg-[#101010] border border-zinc-800 rounded-xl shadow-2xl flex flex-col overflow-hidden">
         
-        <div class="bg-[#1c1c1c] border-b border-zinc-800 p-4 flex items-center justify-between gap-4">
+        <div class="bg-[#18181b] border-b border-zinc-800 p-4 flex items-center justify-between gap-4 z-50">
             
             <div class="flex items-center gap-2">
                 <button id="btn-back" class="p-2 bg-zinc-800 hover:bg-zinc-700 active:bg-zinc-600 rounded-lg transition" title="Regresar al inicio">
@@ -44,36 +51,37 @@
             <div>
                 <label for="audio-upload" class="flex items-center gap-2 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 hover:border-zinc-500 rounded-lg cursor-pointer text-sm font-medium transition text-zinc-300">
                     <i data-lucide="upload" class="w-4 h-4 text-cyan-400"></i>
-                    Importar Audio (MP3/WAV)
+                    Importar Audio
                 </label>
                 <input id="audio-upload" type="file" accept="audio/*" class="hidden">
             </div>
         </div>
 
-        <div class="flex-1 relative bg-[#0d0d0d] overflow-hidden grid-bg select-none" id="timeline-container">
+        <div class="flex-1 relative bg-[#09090b] overflow-x-auto overflow-y-hidden grid-bg select-none custom-scroll" id="timeline-container">
             
-            <div id="playhead" class="absolute top-0 bottom-0 w-[2px] bg-red-500 shadow-[0_0_8px_#ef4444] z-30 left-0 pointer-events-none"></div>
-            
-            <div id="status-msg" class="absolute top-4 left-4 bg-zinc-900/80 border border-zinc-800 px-3 py-1.5 rounded-md text-xs text-zinc-400 z-10 pointer-events-none">
+            <div id="timeline-stretch" class="absolute inset-y-0 left-0 w-[60000px] pointer-events-none">
+                
+                <div id="playhead" class="absolute top-0 bottom-0 w-[2px] bg-red-500 shadow-[0_0_10px_#ef4444] z-30 left-0"></div>
+                
+                <div class="absolute inset-0 flex flex-col opacity-10">
+                    <div class="flex-1 border-b border-zinc-700"></div>
+                    <div class="flex-1 border-b border-zinc-700"></div>
+                    <div class="flex-1 border-b border-zinc-700"></div>
+                    <div class="flex-1 border-b border-zinc-700"></div>
+                </div>
+            </div>
+
+            <div id="status-msg" class="sticky left-4 top-4 inline-block bg-zinc-950/90 border border-zinc-800 px-3 py-1.5 rounded-md text-xs text-zinc-400 z-40 pointer-events-none">
                 Arrastra un archivo para empezar
             </div>
 
-            <div class="absolute inset-0 flex flex-col pointer-events-none opacity-20">
-                <div class="flex-1 border-b border-zinc-800"></div>
-                <div class="flex-1 border-b border-zinc-800"></div>
-                <div class="flex-1 border-b border-zinc-800"></div>
-                <div class="flex-1 border-b border-zinc-800"></div>
-            </div>
-
-            <div id="workspace" class="absolute inset-0 z-20"></div>
+            <div id="workspace" class="absolute inset-y-0 left-0 w-[60000px] z-20"></div>
         </div>
     </div>
 
     <script>
-        // Inicializar Iconos
         lucide.createIcons();
 
-        // Elementos del DOM
         const btnPlay = document.getElementById('btn-play');
         const btnStop = document.getElementById('btn-stop');
         const btnBack = document.getElementById('btn-back');
@@ -84,17 +92,16 @@
         const statusMsg = document.getElementById('status-msg');
         const timelineContainer = document.getElementById('timeline-container');
 
-        // Variables de Estado del DAW
         let audioBuffer = null;
         let player = null;
         let sampleBlock = null;
         
         let isDragging = false;
         let startX = 0;
-        let blockLeft = 120; // Posición inicial en píxeles (X)
-        const blockWidth = 200; // Ancho fijo del bloque por ahora
+        let blockLeft = 80; // Posición inicial X
+        let pixelsPerSecond = 100; // Factor de escala: 1s = 100px
 
-        // 1. GESTIÓN DEL TEMPO (BPM)
+        // 1. GESTIÓN DEL TEMPO
         Tone.Transport.bpm.value = 120;
         inputBpm.addEventListener('change', (e) => {
             let bpm = Math.max(60, Math.min(200, Number(e.target.value)));
@@ -102,64 +109,139 @@
             Tone.Transport.bpm.value = bpm;
         });
 
-        // 2. IMPORTAR AUDIO
+        // 2. IMPORTAR Y PROCESAR AUDIO
         audioUpload.addEventListener('change', async (e) => {
             const file = e.target.files[0];
             if (!file) return;
 
-            statusMsg.innerText = "Cargando y decodificando audio...";
+            statusMsg.innerText = "Decodificando ondas de audio...";
             
-            // Convertir archivo a ArrayBuffer para Tone.js
-            const arrayBuffer = await file.arrayBuffer();
-            audioBuffer = await Tone.getContext().decodeAudioData(arrayBuffer);
-            
-            // Crear el reproductor de audio asociado al buffer
-            if (player) player.dispose();
-            player = new Tone.Player(audioBuffer).toDestination();
+            try {
+                const arrayBuffer = await file.arrayBuffer();
+                audioBuffer = await Tone.getContext().decodeAudioData(arrayBuffer);
+                
+                // Limitar duración máxima a 10 minutos (600 segundos)
+                let duracion = audioBuffer.duration;
+                if (duracion > 600) {
+                    duracion = 600;
+                    statusMsg.innerText = "Audio muy largo. Limitado a 10:00 min.";
+                } else {
+                    statusMsg.innerText = `Sample: ${file.name} (${duracion.toFixed(1)}s)`;
+                }
 
-            statusMsg.innerText = `Sample cargado: ${file.name}`;
-            crearBloqueAudio(file.name);
-            sincronizarAudioConLinea();
+                if (player) player.dispose();
+                player = new Tone.Player(audioBuffer).toDestination();
+
+                // Calcular ancho dinámico basado en la duración exacta del buffer
+                const calculadoWidth = duracion * pixelsPerSecond;
+
+                crearBloqueConOnda(file.name, calculadoWidth);
+                sincronizarAudioConLinea();
+
+            } catch (error) {
+                statusMsg.innerText = "Error al cargar el archivo de audio.";
+                console.error(error);
+            }
         });
 
-        // 3. CREAR Y MOVER EL BLOQUE EN EL PIANO ROLL
-        function crearBloqueAudio(fileName) {
-            // Si ya existía un bloque, lo borramos
+        // 3. GENERAR EL BLOQUE Y DIBUJAR LA ONDA REAL
+        function crearBloqueConOnda(fileName, width) {
             if (sampleBlock) sampleBlock.remove();
 
+            // Contenedor principal del bloque
             sampleBlock = document.createElement('div');
-            sampleBlock.className = "absolute top-1/3 h-16 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-lg border border-cyan-300 shadow-[0_0_15px_rgba(6,182,212,0.4)] flex items-center px-3 cursor-grab text-black font-bold text-xs truncate select-none transition-shadow hover:shadow-[0_0_20px_rgba(6,182,212,0.6)]";
-            sampleBlock.style.width = `${blockWidth}px`;
+            sampleBlock.className = "absolute top-1/4 h-32 bg-zinc-900/90 border border-cyan-500/40 rounded-lg shadow-[0_0_20px_rgba(6,182,212,0.15)] cursor-grab flex flex-col justify-between overflow-hidden select-none";
+            sampleBlock.style.width = `${width}px`;
             sampleBlock.style.left = `${blockLeft}px`;
-            sampleBlock.innerHTML = `<i data-lucide="music" class="w-3.5 h-3.5 mr-1.5 shrink-0"></i> <span class="truncate">${fileName}</span>`;
+
+            // Canvas interno para renderizar las ondas
+            const canvas = document.createElement('canvas');
+            canvas.className = "absolute inset-0 w-full h-full opacity-60 pointer-events-none";
             
+            // Etiqueta de texto superior
+            const label = document.createElement('div');
+            label.className = "relative z-10 p-2 text-xs font-bold text-cyan-400 bg-zinc-950/60 flex items-center gap-1 border-b border-zinc-800/50 backdrop-blur-sm pointer-events-none truncate";
+            label.innerHTML = `<i data-lucide="music" class="w-3.5 h-3.5 text-cyan-400"></i> ${fileName}`;
+
+            sampleBlock.appendChild(canvas);
+            sampleBlock.appendChild(label);
             workspace.appendChild(sampleBlock);
+            
             lucide.createIcons();
 
-            // Eventos para Arrastrar (Drag & Drop) en el eje X
+            // Dibujar la información del buffer en el canvas
+            renderizarOnda(audioBuffer, canvas);
+
+            // Lógica de arrastrar (Drag)
             sampleBlock.addEventListener('mousedown', (e) => {
                 isDragging = true;
                 sampleBlock.classList.replace('cursor-grab', 'cursor-grabbing');
-                startX = e.clientX - blockLeft;
+                sampleBlock.classList.add('border-cyan-400', 'shadow-[0_0_25px_rgba(6,182,212,0.3)]');
+                // Detectar el offset exacto del click dentro del bloque
+                const rect = sampleBlock.getBoundingClientRect();
+                startX = e.clientX - rect.left;
                 e.stopPropagation();
             });
         }
 
+        // Algoritmo matemático para leer los canales de audio y pintar la onda
+        function renderizarOnda(buffer, canvas) {
+            const ctx = canvas.getContext('2d');
+            // Forzar resolución interna del canvas para evitar pixeleado
+            canvas.width = canvas.clientWidth * window.devicePixelRatio;
+            canvas.height = canvas.clientHeight * window.devicePixelRatio;
+
+            const datosAudio = buffer.getChannelData(0); // Canal izquierdo/monofónico
+            const totalMuestras = datosAudio.length;
+            const anchoLienzo = canvas.width;
+            const altoLienzo = canvas.height;
+            const pasoMuestra = Math.ceil(totalMuestras / anchoLienzo);
+            const medioAlto = altoLienzo / 2;
+
+            ctx.fillStyle = 'transparent';
+            ctx.fillRect(0, 0, anchoLienzo, altoLienzo);
+
+            // Gradiente neón para las ondas musicales
+            const gradiente = ctx.createLinearGradient(0, 0, 0, altoLienzo);
+            gradiente.addColorStop(0, '#22d3ee'); // Cyan-400
+            gradiente.addColorStop(0.5, '#06b6d4'); // Cyan-500
+            gradiente.addColorStop(1, '#3b82f6'); // Blue-500
+            ctx.fillStyle = gradiente;
+
+            for (let i = 0; i < anchoLienzo; i++) {
+                let inicioMuestra = i * pasoMuestra;
+                let maximoValor = 0;
+                
+                // Encontrar el pico de volumen en este fragmento para dibujar la barra correspondiente
+                for (let j = 0; j < pasoMuestra; j++) {
+                    const valorActual = Math.abs(datosAudio[inicioMuestra + j]);
+                    if (valorActual > maximoValor) {
+                        maximoValor = valorActual;
+                    }
+                }
+
+                // Dibujar línea vertical simétrica reflejando el centro
+                const grosorBarra = maximoValor * medioAlto * 0.85; 
+                ctx.fillRect(i, medioAlto - grosorBarra, 1.5, grosorBarra * 2);
+            }
+        }
+
+        // Listener de movimiento global
         window.addEventListener('mousemove', (e) => {
             if (!isDragging || !sampleBlock) return;
             
-            // Calculamos la nueva posición X dentro de la ventana
             const containerRect = timelineContainer.getBoundingClientRect();
-            let newLeft = e.clientX - containerRect.left - startX;
+            // Calcular posición considerando el scroll horizontal acumulado del panel
+            let newLeft = e.clientX - containerRect.left - startX + timelineContainer.scrollLeft;
             
-            // Limitar los bordes de la ventana
             if (newLeft < 0) newLeft = 0;
-            if (newLeft > containerRect.width - blockWidth) newLeft = containerRect.width - blockWidth;
+            // Bloqueo estricto a los 10 minutos (60,000 píxeles máximo)
+            const maxLimite = 60000 - sampleBlock.clientWidth;
+            if (newLeft > maxLimite) newLeft = maxLimite;
             
             blockLeft = newLeft;
             sampleBlock.style.left = `${blockLeft}px`;
             
-            // Si movemos el bloque, recalculamos cuándo debe sonar
             sincronizarAudioConLinea();
         });
 
@@ -167,35 +249,36 @@
             if (isDragging && sampleBlock) {
                 isDragging = false;
                 sampleBlock.classList.replace('cursor-grabbing', 'cursor-grab');
+                sampleBlock.classList.remove('border-cyan-400', 'shadow-[0_0_25px_rgba(6,182,212,0.3)]');
             }
         });
 
-        // 4. LOGICA DE TIEMPO Y REPRODUCCIÓN (Sincronización)
+        // 4. TRANSPORTE Y SINCRONIZACIÓN
         function sincronizarAudioConLinea() {
             if (!player) return;
-
-            // Cancelar eventos de audio anteriores para que no se dupliquen
             Tone.Transport.cancel();
 
-            // Convertimos los píxeles del bloque a "Segundos" en el Timeline.
-            // Regla matemática simple: 100 píxeles = 1 segundo de tiempo.
-            const tiempoInicioSg = blockLeft / 100;
+            // Mapeo: píxeles transcurridos / 100 = segundo de ejecución
+            const tiempoInicioSg = blockLeft / pixelsPerSecond;
 
-            // Programamos el trigger en el Timeline global
             Tone.Transport.schedule((time) => {
                 player.start(time);
             }, tiempoInicioSg);
         }
 
-        // Animación de la línea roja (Playhead)
         function actualizarPlayhead() {
             if (Tone.Transport.state === "started") {
-                // Si 1 segundo son 100 píxeles, multiplicamos el tiempo actual por 100
-                const currentLeft = Tone.Transport.seconds * 100;
+                const currentLeft = Tone.Transport.seconds * pixelsPerSecond;
                 playhead.style.left = `${currentLeft}px`;
                 
-                // Si la línea se sale de la pantalla visible, regresa al inicio automáticamente
-                if (currentLeft > timelineContainer.clientWidth) {
+                // Auto-scroll del contenedor para seguir la línea roja si avanza fuera de pantalla
+                const rangoVisible = timelineContainer.scrollLeft + timelineContainer.clientWidth;
+                if (currentLeft > rangoVisible - 50) {
+                    timelineContainer.scrollLeft = currentLeft - 100;
+                }
+
+                // Parada preventiva a los 10 minutos
+                if (Tone.Transport.seconds >= 600) {
                     resetTransport();
                 }
             }
@@ -203,9 +286,8 @@
         }
         requestAnimationFrame(actualizarPlayhead);
 
-        // Controles de Transporte (Botones)
         btnPlay.addEventListener('click', async () => {
-            await Tone.start(); // Requerido por navegadores
+            await Tone.start();
             if (Tone.Transport.state !== "started") {
                 Tone.Transport.start();
                 btnPlay.innerHTML = `<i data-lucide="pause" class="w-5 h-5 text-black"></i>`;
@@ -220,13 +302,13 @@
             Tone.Transport.stop();
             if (player) player.stop();
             playhead.style.left = "0px";
+            timelineContainer.scrollLeft = 0;
             btnPlay.innerHTML = `<i data-lucide="play" class="w-5 h-5 text-black"></i>`;
             lucide.createIcons();
         }
 
         btnStop.addEventListener('click', resetTransport);
         btnBack.addEventListener('click', resetTransport);
-
     </script>
 </body>
 </html>
