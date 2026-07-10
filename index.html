@@ -3,12 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sample Roll DAW - Zero Latency</title>
-    <!-- Tailwind CSS -->
+    <title>Sample Roll DAW - Slicing Update</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Tone.js para el motor de audio -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
-    <!-- Iconos -->
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
         .grid-bg {
@@ -22,49 +19,43 @@
         }
         .custom-scroll::-webkit-scrollbar-thumb {
             background: #27272a;
-            border-radius: 3px;
+            border-radius: 0px;
         }
     </style>
 </head>
 <body class="bg-black text-zinc-200 h-screen flex flex-col justify-center items-center overflow-hidden font-sans select-none">
 
-    <!-- CONTENEDOR PRINCIPAL -->
-    <div class="w-11/12 max-w-5xl h-[80vh] bg-[#0c0c0e] border border-zinc-900 rounded-xl shadow-2xl flex flex-col overflow-hidden">
+    <div class="w-11/12 max-w-5xl h-[80vh] bg-[#0c0c0e] border border-zinc-900 rounded-none shadow-2xl flex flex-col overflow-hidden">
         
-        <!-- BARRA DE CONTROL -->
         <div class="bg-[#121214] border-b border-zinc-900 p-4 flex items-center justify-between gap-4 z-50">
             
-            <!-- Controles de Transporte (Play/Pause/Restart) -->
             <div class="flex items-center gap-2">
-                <button id="btn-restart" class="p-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-lg transition" title="Reiniciar al inicio">
+                <button id="btn-restart" class="p-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-none transition" title="Reiniciar al inicio">
                     <i data-lucide="rotate-ccw" class="w-4 h-4 text-white"></i>
                 </button>
-                <button id="btn-play" class="p-2 bg-white hover:bg-zinc-200 text-black rounded-lg transition" title="Play / Pause">
+                <button id="btn-play" class="p-2 bg-white hover:bg-zinc-200 text-black rounded-none transition" title="Play / Pause">
                     <i data-lucide="play" class="w-4 h-4 fill-black"></i>
                 </button>
             </div>
 
-            <!-- Controles de Zoom -->
-            <div class="flex items-center gap-1 bg-zinc-900 p-1 rounded-lg border border-zinc-800">
-                <button id="btn-zoom-out" class="p-1.5 hover:bg-zinc-800 rounded text-zinc-400 hover:text-white transition" title="Alejar Zoom">
+            <div class="flex items-center gap-1 bg-zinc-900 p-1 rounded-none border border-zinc-800">
+                <button id="btn-zoom-out" class="p-1.5 hover:bg-zinc-800 rounded-none text-zinc-400 hover:text-white transition" title="Alejar Zoom">
                     <i data-lucide="zoom-out" class="w-4 h-4"></i>
                 </button>
                 <span id="txt-zoom" class="text-[10px] font-mono text-zinc-500 px-1 min-w-[35px] text-center">30%</span>
-                <button id="btn-zoom-in" class="p-1.5 hover:bg-zinc-800 rounded text-zinc-400 hover:text-white transition" title="Acercar Zoom">
+                <button id="btn-zoom-in" class="p-1.5 hover:bg-zinc-800 rounded-none text-zinc-400 hover:text-white transition" title="Acercar Zoom">
                     <i data-lucide="zoom-in" class="w-4 h-4"></i>
                 </button>
             </div>
 
-            <!-- Ajuste de Tempo (BPM) -->
-            <div class="flex items-center gap-3 bg-zinc-900 px-3 py-1.5 rounded-lg border border-zinc-800">
+            <div class="flex items-center gap-3 bg-zinc-900 px-3 py-1.5 rounded-none border border-zinc-800">
                 <span class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Tempo</span>
                 <input id="input-bpm" type="number" value="120" min="60" max="200" class="w-12 bg-transparent text-white font-mono font-bold focus:outline-none text-center text-md">
                 <span class="text-xs text-zinc-600 font-bold">BPM</span>
             </div>
 
-            <!-- Input de Importar Archivo -->
-            <div>
-                <label for="audio-upload" class="flex items-center gap-2 px-4 py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 rounded-lg cursor-pointer text-sm font-medium transition text-white">
+            <div class="flex items-center gap-2">
+                <label for="audio-upload" class="flex items-center gap-2 px-4 py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 rounded-none cursor-pointer text-sm font-medium transition text-white">
                     <i data-lucide="upload" class="w-4 h-4"></i>
                     Importar Audio
                 </label>
@@ -72,23 +63,17 @@
             </div>
         </div>
 
-        <!-- AREA DEL PIANO ROLL / TIMELINE -->
         <div class="flex-1 relative bg-[#060607] overflow-x-auto overflow-y-hidden grid-bg custom-scroll cursor-crosshair" id="timeline-container">
             
-            <!-- Lienzo Dinámico Expandible -->
             <div id="timeline-stretch" class="absolute inset-y-0 left-0 w-[60000px] pointer-events-none">
-                <!-- Línea de reproducción (Playhead) -->
                 <div id="playhead" class="absolute top-0 bottom-0 w-[1.5px] bg-white shadow-[0_0_8px_rgba(255,255,255,0.8)] z-30 left-0"></div>
             </div>
 
-            <!-- CONTENEDOR DEL SAMPLE -->
             <div id="workspace" class="absolute inset-y-0 left-0 w-[60000px] z-20 pointer-events-none"></div>
         </div>
     </div>
 
-    <!-- AUDIO & UI SCRIPT -->
     <script>
-        // OPTIMIZACIÓN DE LATENCIA CERO
         Tone.getContext().lookAhead = 0; 
         Tone.getContext().latencyHint = "interactive";
 
@@ -106,19 +91,23 @@
         const timelineContainer = document.getElementById('timeline-container');
 
         let audioBuffer = null;
-        let player = null;
-        let sampleBlock = null;
+        let originalFileName = "";
+        
+        // Estructura para soportar múltiples bloques creados por cortes
+        let blocksList = []; 
+        let selectedBlockId = null;
+        let blockIdCounter = 0;
         
         let isDragging = false;
         let isMovingPlayhead = false;
         let startX = 0;
-        let blockLeft = 40; 
+        let draggedBlockData = null;
         
         let currentZoomLevel = 0.3;
         const basePixelsPerSecond = 100;
         let pixelsPerSecond = basePixelsPerSecond * currentZoomLevel;
 
-        // 1. GESTIÓN DEL TEMPO
+        // GESTIÓN DEL TEMPO
         Tone.Transport.bpm.value = 120;
         inputBpm.addEventListener('change', (e) => {
             let bpm = Math.max(60, Math.min(200, Number(e.target.value)));
@@ -126,7 +115,7 @@
             Tone.Transport.bpm.value = bpm;
         });
 
-        // 2. IMPORTAR AUDIO
+        // IMPORTAR AUDIO
         audioUpload.addEventListener('change', async (e) => {
             const file = e.target.files[0];
             if (!file) return;
@@ -134,96 +123,150 @@
             try {
                 const arrayBuffer = await file.arrayBuffer();
                 audioBuffer = await Tone.getContext().decodeAudioData(arrayBuffer);
-                
-                if (player) player.dispose();
-                // Modo sincrónico nativo de latencia baja
-                player = new Tone.Player({ url: audioBuffer, sync: false }).toDestination();
+                originalFileName = file.name.toUpperCase();
 
-                actualizarLienzoYBloque(file.name);
+                // Limpiar bloques anteriores al cargar un archivo nuevo entero
+                eliminarTodosLosBloques();
+
+                // Crear el bloque inicial completo
+                crearNuevoBloque(40, 0, audioBuffer.duration);
             } catch (error) {
                 console.error("Error cargando el archivo:", error);
             }
         });
 
-        // 3. ACTUALIZACIÓN POR ZOOM Y ALTO ESTILIZADO
-        function actualizarLienzoYBloque(fileName) {
-            if (!audioBuffer) return;
-
-            let duracion = Math.min(audioBuffer.duration, 600);
-            const blockWidth = duracion * pixelsPerSecond;
-
-            if (!sampleBlock) {
-                sampleBlock = document.createElement('div');
-                sampleBlock.className = "absolute top-10 h-16 bg-[#121214] border border-zinc-800 rounded-md shadow-lg cursor-grab flex flex-col justify-between overflow-hidden pointer-events-auto";
-                
-                const canvas = document.createElement('canvas');
-                canvas.id = "waveform-canvas";
-                canvas.className = "absolute inset-0 w-full h-full opacity-90 pointer-events-none";
-                
-                const label = document.createElement('div');
-                label.id = "waveform-label";
-                label.className = "relative z-10 p-1 text-[9px] font-mono tracking-wider text-zinc-400 bg-black/40 flex items-center gap-1 border-b border-zinc-900/40 backdrop-blur-sm pointer-events-none truncate";
-                
-                sampleBlock.appendChild(canvas);
-                sampleBlock.appendChild(label);
-                workspace.appendChild(sampleBlock);
-
-                sampleBlock.addEventListener('mousedown', (e) => {
-                    isDragging = true;
-                    sampleBlock.classList.replace('cursor-grab', 'cursor-grabbing');
-                    sampleBlock.classList.replace('border-zinc-800', 'border-zinc-500');
-                    const rect = sampleBlock.getBoundingClientRect();
-                    startX = e.clientX - rect.left;
-                    e.stopPropagation(); // Evita mover la barra al arrastrar el bloque
-                });
-            }
-
-            // Aplicar tamaño
-            sampleBlock.style.width = `${blockWidth}px`;
-            sampleBlock.style.left = `${blockLeft}px`;
-            
-            const label = document.getElementById('waveform-label');
-            label.innerHTML = `<i data-lucide="music" class="w-2.5 h-2.5 text-white"></i> ${fileName.toUpperCase()}`;
-            lucide.createIcons();
-
-            // Renderizar forzando las medidas exactas antes de pintar para corregir borrosidad inicial
-            const canvas = document.getElementById('waveform-canvas');
-            canvas.style.width = `${blockWidth}px`; 
-            
-            // Un micro-delay de frames asegura que el DOM asimiló el tamaño antes de calcular los picos HD
-            requestAnimationFrame(() => {
-                renderizarOndaHD(audioBuffer, canvas, blockWidth);
+        function eliminarTodosLosBloques() {
+            blocksList.forEach(b => {
+                if (b.player) b.player.dispose();
+                b.domElement.remove();
             });
-            
-            sincronizarAudioConLinea();
+            blocksList = [];
+            selectedBlockId = null;
+            Tone.Transport.cancel();
         }
 
-        function renderizarOndaHD(buffer, canvas, width) {
+        // INSTANCIAR NUEVO BLOQUE (SOPORTA AUDIO TOTAL O FRAGMENTOS / SLICES)
+        function crearNuevoBloque(posX, startTime, endTime) {
+            if (!audioBuffer) return;
+
+            const id = blockIdCounter++;
+            const duration = endTime - startTime;
+            const blockWidth = duration * pixelsPerSecond;
+
+            // Elemento HTML del bloque (rounded-none)
+            const dom = document.createElement('div');
+            dom.className = "absolute top-10 h-16 bg-[#121214] border border-zinc-800 rounded-none shadow-lg cursor-grab flex flex-col justify-between overflow-hidden pointer-events-auto";
+            dom.style.width = `${blockWidth}px`;
+            dom.style.left = `${posX}px`;
+            dom.setAttribute('data-id', id);
+
+            const canvas = document.createElement('canvas');
+            canvas.className = "absolute inset-0 w-full h-full opacity-90 pointer-events-none";
+            
+            const label = document.createElement('div');
+            label.className = "relative z-10 p-1 text-[9px] font-mono tracking-wider text-zinc-400 bg-black/40 flex items-center gap-1 border-b border-zinc-900/40 backdrop-blur-sm pointer-events-none truncate";
+            label.innerHTML = `<i data-lucide="music" class="w-2.5 h-2.5 text-white"></i> ${originalFileName}`;
+
+            dom.appendChild(canvas);
+            dom.appendChild(label);
+            workspace.appendChild(dom);
+            lucide.createIcons();
+
+            // Configurar reproductor independiente para esta sección de audio
+            const player = new Tone.Player({ url: audioBuffer, sync: false }).toDestination();
+
+            const blockObject = {
+                id: id,
+                domElement: dom,
+                canvasElement: canvas,
+                player: player,
+                leftX: posX,
+                audioStart: startTime,
+                audioEnd: endTime,
+                audioDuration: duration
+            };
+
+            blocksList.push(blockObject);
+
+            // Evento de Selección y Arrastre
+            dom.addEventListener('mousedown', (e) => {
+                seleccionarBloque(id);
+                isDragging = true;
+                dom.classList.replace('cursor-grab', 'cursor-grabbing');
+                
+                const rect = dom.getBoundingClientRect();
+                startX = e.clientX - rect.left;
+                draggedBlockData = blockObject;
+                e.stopPropagation(); 
+            });
+
+            // Forzar renderizado gráfico de la sección de onda correspondiente
+            canvas.style.width = `${blockWidth}px`;
+            requestAnimationFrame(() => {
+                renderizarSeccionOndaHD(blockObject);
+            });
+
+            reprogramarSecuenciadorGlobal();
+            seleccionarBloque(id); // Autoseleccionar al crear o cortar
+        }
+
+        // SELECCIONAR UN BLOQUE ESPECÍFICO
+        function seleccionarBloque(id) {
+            selectedBlockId = id;
+            blocksList.forEach(b => {
+                if (b.id === id) {
+                    b.domElement.classList.remove('border-zinc-800');
+                    b.domElement.classList.add('border-white', 'shadow-[0_0_12px_rgba(255,255,255,0.15)]');
+                } else {
+                    b.domElement.classList.remove('border-white', 'shadow-[0_0_12px_rgba(255,255,255,0.15)]');
+                    b.domElement.classList.add('border-zinc-800');
+                }
+            });
+        }
+
+        function deseleccionarTodo() {
+            selectedBlockId = null;
+            blocksList.forEach(b => {
+                b.domElement.classList.remove('border-white', 'shadow-[0_0_12px_rgba(255,255,255,0.15)]');
+                b.domElement.classList.add('border-zinc-800');
+            });
+        }
+
+        // RENDERIZAR SÓLO EL FRAGMENTO DE AUDIO DEL SAMPLE
+        function renderizarSeccionOndaHD(block) {
+            const canvas = block.canvasElement;
             const ctx = canvas.getContext('2d');
             const dpr = window.devicePixelRatio || 1;
-            const altoLienzo = 64; // El alto en px de tu h-16
-            
+            const width = parseFloat(block.domElement.style.width);
+            const altoLienzo = 64;
+
             canvas.width = width * dpr;
             canvas.height = altoLienzo * dpr;
             ctx.scale(dpr, dpr);
 
-            const datosAudio = buffer.getChannelData(0);
-            const totalMuestras = datosAudio.length;
-            
+            const datosAudio = audioBuffer.getChannelData(0);
+            const totalMuestrasGlobales = datosAudio.length;
+
+            // Mapear qué rango de muestras le pertenecen a este bloque cortado
+            const muestraInicio = Math.floor((block.audioStart / audioBuffer.duration) * totalMuestrasGlobales);
+            const muestraFin = Math.floor((block.audioEnd / audioBuffer.duration) * totalMuestrasGlobales);
+            const totalMuestrasBloque = muestraFin - muestraInicio;
+
             const anchoBarra = 2;
             const espacio = 1;
             const totalBarras = Math.floor(width / (anchoBarra + espacio));
-            const pasoMuestra = Math.floor(totalMuestras / totalBarras);
+            const pasoMuestra = Math.floor(totalMuestrasBloque / totalBarras);
             const medioAlto = altoLienzo / 2;
 
             ctx.clearRect(0, 0, width, altoLienzo);
             ctx.fillStyle = '#ffffff';
 
             for (let i = 0; i < totalBarras; i++) {
-                let inicioMuestra = i * pasoMuestra;
+                let inicioMuestra = muestraInicio + (i * pasoMuestra);
                 let maximoValor = 0;
                 
                 for (let j = 0; j < pasoMuestra; j++) {
+                    if (inicioMuestra + j >= totalMuestrasGlobales) break;
                     const valorActual = Math.abs(datosAudio[inicioMuestra + j]);
                     if (valorActual > maximoValor) maximoValor = valorActual;
                 }
@@ -234,25 +277,46 @@
             }
         }
 
-        // 4. SISTEMA DE ZOOM
+        // REDIBUJAR TODO EL MOTOR POR ACCIÓN DE ZOOM
+        function refrescarDimensionesPorZoom() {
+            blocksList.forEach(b => {
+                const blockWidth = b.audioDuration * pixelsPerSecond;
+                b.domElement.style.width = `${blockWidth}px`;
+                b.domElement.style.left = `${b.leftX}px`;
+                b.canvasElement.style.width = `${blockWidth}px`;
+                renderizarSeccionOndaHD(b);
+            });
+            reprogramarSecuenciadorGlobal();
+        }
+
+        // ZOOM CONTROLES
         function cambiarZoom(delta) {
+            const anteriorZoom = currentZoomLevel;
             currentZoomLevel = Math.max(0.1, Math.min(4.0, currentZoomLevel + delta));
             pixelsPerSecond = basePixelsPerSecond * currentZoomLevel;
             txtZoom.innerText = `${Math.round(currentZoomLevel * 100)}%`;
             
-            if (audioUpload.files[0] && audioBuffer) {
-                actualizarLienzoYBloque(audioUpload.files[0].name);
+            if (audioBuffer) {
+                // Re-escalar las posiciones X de los bloques proporcionalmente para mantener coherencia de tiempo
+                blocksList.forEach(b => {
+                    const tiempoX = b.leftX / (basePixelsPerSecond * anteriorZoom);
+                    b.leftX = tiempoX * pixelsPerSecond;
+                });
+                refrescarDimensionesPorZoom();
             }
-            // Reposicionar línea visualmente según el nuevo valor de Zoom
             playhead.style.left = `${Tone.Transport.seconds * pixelsPerSecond}px`;
         }
 
         btnZoomIn.addEventListener('click', () => cambiarZoom(0.1));
         btnZoomOut.addEventListener('click', () => cambiarZoom(-0.1));
 
-        // 5. MOVIMIENTO DEL BLOQUE Y LÍNEA DE TIEMPO (PLAYHEAD)
+        // NAVEGACIÓN DE LÍNEA ROJA (PLAYHEAD)
         timelineContainer.addEventListener('mousedown', (e) => {
             if (isDragging) return;
+            // Si el click es en el fondo vacío, deseleccionar bloques
+            if (e.target === timelineContainer || e.target === document.getElementById('timeline-stretch') || e.target === workspace) {
+                deseleccionarTodo();
+            }
             isMovingPlayhead = true;
             moverLineaA(e);
         });
@@ -265,28 +329,32 @@
             Tone.Transport.seconds = nuevoTiempo;
             playhead.style.left = `${clickX}px`;
 
-            // Si estaba sonando, refrescar inmediatamente la posición del audio sobre la marcha
-            if (Tone.Transport.state === "started" && player) {
-                player.stop();
-                const tiempoInicioSg = blockLeft / pixelsPerSecond;
-                if (nuevoTiempo >= tiempoInicioSg && nuevoTiempo < tiempoInicioSg + audioBuffer.duration) {
-                    player.start(Tone.now(), nuevoTiempo - tiempoInicioSg);
-                }
+            // Refrescar reproducción al vuelo si está activo
+            if (Tone.Transport.state === "started") {
+                blocksList.forEach(b => b.player.stop());
+                blocksList.forEach(b => {
+                    const blockStartTimeline = b.leftX / pixelsPerSecond;
+                    const blockEndTimeline = blockStartTimeline + b.audioDuration;
+                    if (nuevoTiempo >= blockStartTimeline && nuevoTiempo < blockEndTimeline) {
+                        const offsetEnBloque = nuevoTiempo - blockStartTimeline;
+                        const offsetRealBuffer = b.audioStart + offsetEnBloque;
+                        b.player.start(Tone.now(), offsetRealBuffer, b.audioEnd - offsetRealBuffer);
+                    }
+                });
             }
         }
 
+        // MOVEMENT ENGINE (MOUSEMOVE)
         window.addEventListener('mousemove', (e) => {
-            // Caso A: Arrastrando el Bloque de Audio
-            if (isDragging && sampleBlock) {
+            if (isDragging && draggedBlockData) {
                 const containerRect = timelineContainer.getBoundingClientRect();
                 let newLeft = e.clientX - containerRect.left - startX + timelineContainer.scrollLeft;
                 if (newLeft < 0) newLeft = 0;
                 
-                blockLeft = newLeft;
-                sampleBlock.style.left = `${blockLeft}px`;
-                sincronizarAudioConLinea();
+                draggedBlockData.leftX = newLeft;
+                draggedBlockData.domElement.style.left = `${newLeft}px`;
+                reprogramarSecuenciadorGlobal();
             }
-            // Caso B: Arrastrando y moviendo la Línea Roja
             if (isMovingPlayhead) {
                 moverLineaA(e);
             }
@@ -295,25 +363,26 @@
         window.addEventListener('mouseup', () => {
             isDragging = false;
             isMovingPlayhead = false;
-            if (sampleBlock) {
-                sampleBlock.classList.replace('cursor-grabbing', 'cursor-grab');
-                sampleBlock.classList.replace('border-zinc-500', 'border-zinc-800');
+            if (draggedBlockData) {
+                draggedBlockData.domElement.classList.replace('cursor-grabbing', 'cursor-grab');
+                seleccionarBloque(draggedBlockData.id);
+                draggedBlockData = null;
             }
         });
 
-        // 6. CONTROLADOR DE REPRODUCCIÓN (Sincronización milimétrica)
-        function sincronizarAudioConLinea() {
-            if (!player) return;
-            Tone.Transport.cancel();
-            
-            const tiempoInicioSg = blockLeft / pixelsPerSecond;
-            
-            Tone.Transport.schedule((time) => {
-                // Si el transporte arranca desde el inicio o antes del bloque
-                player.start(time);
-            }, tiempoInicioSg);
+        // RE-PROGRAMACIÓN EN TIEMPO REAL DEL DAW
+        function reprogramarSecuenciadorGlobal() {
+            Tone.Transport.cancel(); // Vaciar agenda previa
+
+            blocksList.forEach(b => {
+                const tiempoInicioTimeline = b.leftX / pixelsPerSecond;
+                Tone.Transport.schedule((time) => {
+                    b.player.start(time, b.audioStart, b.audioDuration);
+                }, tiempoInicioTimeline);
+            });
         }
 
+        // ANIMACIÓN DE PLAYHEAD
         function actualizarPlayhead() {
             if (Tone.Transport.state === "started" && !isMovingPlayhead) {
                 const currentLeft = Tone.Transport.seconds * pixelsPerSecond;
@@ -323,31 +392,89 @@
         }
         requestAnimationFrame(actualizarPlayhead);
 
-        // PLAY / PAUSA
+        // ATAJOS DE TECLADO: ELIMINAR (CTRL+X) Y CORTAR (C)
+        window.addEventListener('keydown', (e) => {
+            // Eliminar Bloque Seleccionado (Ctrl + X)
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'x') {
+                if (selectedBlockId !== null) {
+                    e.preventDefault();
+                    const index = blocksList.findIndex(b => b.id === selectedBlockId);
+                    if (index !== -1) {
+                        blocksList[index].player.dispose();
+                        blocksList[index].domElement.remove();
+                        blocksList.splice(index, 1);
+                        selectedBlockId = null;
+                        reprogramarSecuenciadorGlobal();
+                    }
+                }
+            }
+
+            // Cortar Bloque en la Línea (C)
+            if (e.key.toLowerCase() === 'c' && !e.ctrlKey && !e.metaKey) {
+                if (selectedBlockId !== null) {
+                    const block = blocksList.find(b => b.id === selectedBlockId);
+                    if (block) {
+                        const tiempoLinea = Tone.Transport.seconds;
+                        const inicioBloqueTimeline = block.leftX / pixelsPerSecond;
+                        const finBloqueTimeline = inicioBloqueTimeline + block.audioDuration;
+
+                        // Verificar si la línea roja cruza efectivamente el bloque seleccionado
+                        if (tiempoLinea > inicioBloqueTimeline && tiempoLinea < finBloqueTimeline) {
+                            const tiempoDeCorteRelativo = tiempoLinea - inicioBloqueTimeline;
+                            const puntoCorteBuffer = block.audioStart + tiempoDeCorteRelativo;
+
+                            // Guardar datos del bloque viejo antes de fragmentarlo
+                            const originalEnd = block.audioEnd;
+                            const originalLeft = block.leftX;
+
+                            // Modificar extremo final del primer segmento resultante
+                            block.audioEnd = puntoCorteBuffer;
+                            block.audioDuration = puntoCorteBuffer - block.audioStart;
+                            
+                            const nuevoAnchoPrimerBloque = block.audioDuration * pixelsPerSecond;
+                            block.domElement.style.width = `${nuevoAnchoPrimerBloque}px`;
+                            block.canvasElement.style.width = `${nuevoAnchoPrimerBloque}px`;
+                            renderizarSeccionOndaHD(block);
+
+                            // Crear el segundo segmento justo al lado
+                            const nuevoPosX = originalLeft + nuevoAnchoPrimerBloque;
+                            crearNuevoBloque(nuevoPosX, puntoCorteBuffer, originalEnd);
+                        }
+                    }
+                }
+            }
+        });
+
+        // TRANSPORT EVENTS
         btnPlay.addEventListener('click', async () => {
             await Tone.start();
             if (Tone.Transport.state !== "started") {
                 Tone.Transport.start(Tone.now());
-                const tiempoInicioSg = blockLeft / pixelsPerSecond;
                 const tiempoActual = Tone.Transport.seconds;
 
-                if (audioBuffer && tiempoActual > tiempoInicioSg && tiempoActual < tiempoInicioSg + audioBuffer.duration) {
-                    const offset = tiempoActual - tiempoInicioSg;
-                    player.start(Tone.now(), offset);
-                }
+                // Comportamiento de Playback preciso con offsets sobre múltiples cortes simultáneos
+                blocksList.forEach(b => {
+                    const blockStart = b.leftX / pixelsPerSecond;
+                    const blockEnd = blockStart + b.audioDuration;
+                    if (tiempoActual >= blockStart && tiempoActual < blockEnd) {
+                        const offset = tiempoActual - blockStart;
+                        const targetBufferStart = b.audioStart + offset;
+                        b.player.start(Tone.now(), targetBufferStart, b.audioEnd - targetBufferStart);
+                    }
+                });
+
                 btnPlay.innerHTML = `<i data-lucide="pause" class="w-4 h-4 text-black fill-black"></i>`;
             } else {
                 Tone.Transport.pause();
-                if (player) player.stop();
+                blocksList.forEach(b => b.player.stop());
                 btnPlay.innerHTML = `<i data-lucide="play" class="w-4 h-4 text-black fill-black"></i>`;
             }
             lucide.createIcons();
         });
 
-        // RESTART
         btnRestart.addEventListener('click', () => {
             Tone.Transport.stop();
-            if (player) player.stop();
+            blocksList.forEach(b => b.player.stop());
             playhead.style.left = "0px";
             Tone.Transport.seconds = 0;
             timelineContainer.scrollLeft = 0;
