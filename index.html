@@ -101,8 +101,8 @@
     </div>
 
     <script>
-        Tone.getContext().lookAhead = 0; 
-        Tone.getContext().latencyHint = "interactive";
+        Tone.getContext().lookAhead = 0.05; 
+        Tone.getContext().latencyHint = "playback"; // Cambiado a playback para maximizar la calidad del motor de stretching
 
         lucide.createIcons();
 
@@ -142,7 +142,7 @@
         // MENÚ CONTEXTUAL PROFESIONAL EN EL DOM
         const menuContextual = document.createElement('div');
         menuContextual.id = 'menu-contextual-bloque';
-        menuContextual.className = 'hidden absolute bg-[#0e0e10] border border-zinc-800 p-4 rounded-md shadow-2xl z-50 w-64 text-zinc-300 font-mono text-xs flex flex-col gap-4';
+        menuContextual.className = 'hidden absolute bg-[#0c0c0e] border border-zinc-850 p-4 rounded-md shadow-2xl z-50 w-64 text-zinc-300 font-mono text-xs flex flex-col gap-4';
         document.body.appendChild(menuContextual);
 
         document.addEventListener('click', (e) => {
@@ -170,7 +170,6 @@
             e.target.value = bpm;
             Tone.Transport.bpm.value = bpm;
             
-            // Sincronización del warp de tempo global
             const factorVelocidadGlobal = bpm / 120; 
             blocksList.forEach(b => {
                 if (b.player) {
@@ -315,32 +314,29 @@
             }
             lucide.createIcons();
 
-            // === CADENA DE AUDIO PROFESIONAL (GRAIN PLAYER + PITCH SHIFT ESTUDIO) ===
+            // === PRO AUDIO PIPELINE (GRAIN ENGINE REAL-TIME) ===
             const blockVolumeNode = new Tone.Volume(presetEffects ? presetEffects.volume : 0);
             
-            // Configuramos un PitchShift optimizado de baja latencia con ventana pro de 0.1s
+            // Usamos un PitchShift de ultra-baja latencia para corregir el tono armónico
             const pitchShiftNode = new Tone.PitchShift({
                 pitch: presetEffects ? presetEffects.pitch : 0,
-                windowSize: 0.1,
+                windowSize: 0.08, // Ventana optimizada para transitorios rápidos sin phasing
                 feedback: 0
             });
             
             pitchShiftNode.connect(blockVolumeNode);
             blockVolumeNode.connect(targetTrack.volumeNode);
 
-            // GrainPlayer nos da Time-Stretching cristalino e independiente de tono
+            // GrainPlayer profesional con granularidad adaptativa
             const player = new Tone.GrainPlayer({
                 url: buffer,
-                overlap: 0.1,
-                grainSize: 0.08,
+                overlap: 0.05,
+                grainSize: 0.1, // Grano más largo para evitar el sonido "robótico"
+                playbackRate: presetEffects ? presetEffects.playbackRate : 1.0,
+                reverse: presetEffects ? presetEffects.reverse : false,
                 loop: false
             });
             player.connect(pitchShiftNode);
-
-            if (presetEffects) {
-                player.playbackRate = presetEffects.playbackRate;
-                player.reverse = presetEffects.reverse;
-            }
 
             const blockObject = {
                 id: id,
@@ -393,51 +389,50 @@
             seleccionarBloque(id);
         }
 
-        // CONTROL CONTEXTUAL DE GRADO DE ESTUDIO
+        // MENÚ CONTEXTUAL MINIMALISTA PROFESIONAL (SOLO "REVERSA")
         function mostrarMenuContextual(block, x, y) {
             menuContextual.innerHTML = `
                 <div class="flex items-center justify-between border-b border-zinc-800 pb-2 mb-1">
-                    <span class="font-bold text-white truncate max-w-[150px] tracking-tight">${block.fileName}</span>
-                    <span class="text-[9px] text-emerald-400 font-bold font-mono tracking-widest">DSP PRO</span>
+                    <span class="font-bold text-white truncate max-w-[150px] tracking-tight text-[10px]">${block.fileName}</span>
+                    <span class="text-[8px] text-emerald-400 font-bold font-mono tracking-widest">DSP ENGINE</span>
                 </div>
                 
-                <!-- PITCH SHIFT DE PRECISIÓN -->
+                <!-- PITCH SHIFT -->
                 <div class="flex flex-col gap-1">
-                    <div class="flex justify-between text-[10px]">
-                        <span class="text-zinc-400 tracking-tight">PITCH (TONO)</span>
-                        <span id="ctx-pitch-val" class="font-bold text-emerald-400">${block.pitch > 0 ? '+' : ''}${block.pitch} semitones</span>
+                    <div class="flex justify-between text-[9px]">
+                        <span class="text-zinc-500 tracking-tight">PITCH (TONO)</span>
+                        <span id="ctx-pitch-val" class="font-bold text-emerald-400">${block.pitch > 0 ? '+' : ''}${block.pitch} semitonos</span>
                     </div>
                     <input id="ctx-pitch" type="range" min="-12" max="12" step="1" value="${block.pitch}" class="w-full accent-white bg-zinc-800 h-1 appearance-none cursor-pointer">
                 </div>
 
-                <!-- TIME STRETCHING CRISTALINO -->
+                <!-- VELOCIDAD SIN ALTERAR TONO -->
                 <div class="flex flex-col gap-1">
-                    <div class="flex justify-between text-[10px]">
-                        <span class="text-zinc-400 tracking-tight">VELOCIDAD</span>
+                    <div class="flex justify-between text-[9px]">
+                        <span class="text-zinc-500 tracking-tight">VELOCIDAD (STRETCH)</span>
                         <span id="ctx-rate-val" class="font-bold text-emerald-400">${block.playbackRate.toFixed(2)}x</span>
                     </div>
                     <input id="ctx-rate" type="range" min="0.25" max="3.0" step="0.05" value="${block.playbackRate}" class="w-full accent-white bg-zinc-800 h-1 appearance-none cursor-pointer">
                 </div>
 
-                <!-- GANANCIA LIMPIA -->
+                <!-- GANANCIA -->
                 <div class="flex flex-col gap-1">
-                    <div class="flex justify-between text-[10px]">
-                        <span class="text-zinc-400 tracking-tight">VOLUMEN</span>
+                    <div class="flex justify-between text-[9px]">
+                        <span class="text-zinc-500 tracking-tight">VOLUMEN</span>
                         <span id="ctx-vol-val" class="font-bold text-emerald-400">${block.volume > 0 ? '+' : ''}${block.volume} dB</span>
                     </div>
                     <input id="ctx-vol" type="range" min="-30" max="12" step="1" value="${block.volume}" class="w-full accent-white bg-zinc-800 h-1 appearance-none cursor-pointer">
                 </div>
 
-                <!-- REVERSA COMPACTA -->
-                <div class="flex items-center justify-between bg-zinc-900/40 p-2 border border-zinc-800 rounded">
-                    <span class="text-zinc-400 font-bold tracking-tight">REVERSA</span>
-                    <button id="ctx-reverse" class="px-4 py-1 text-[10px] font-bold rounded border transition-all ${block.reverse ? 'bg-emerald-500 text-black border-emerald-400 font-extrabold' : 'bg-zinc-850 text-zinc-400 border-zinc-700 hover:text-white'}">
+                <!-- REVERSA LIMPIA -->
+                <div class="flex items-center justify-between bg-zinc-900/40 p-2 border border-zinc-800 rounded-sm">
+                    <span class="text-zinc-400 font-bold tracking-tight text-[10px]">REVERSA</span>
+                    <button id="ctx-reverse" class="px-4 py-1 text-[9px] font-bold rounded-sm border transition-all ${block.reverse ? 'bg-emerald-500 text-black border-emerald-400' : 'bg-zinc-800 text-zinc-400 border-zinc-700 hover:text-white'}">
                         ${block.reverse ? 'SÍ' : 'NO'}
                     </button>
                 </div>
             `;
 
-            // Calcular colisiones con los bordes de la pantalla para posicionar el menú
             const screenWidth = window.innerWidth;
             const screenHeight = window.innerHeight;
             let posX = x;
@@ -456,7 +451,7 @@
                 const val = parseInt(e.target.value);
                 block.pitch = val;
                 block.pitchShift.pitch = val;
-                pitchVal.innerText = `${val > 0 ? '+' : ''}${val} semitones`;
+                pitchVal.innerText = `${val > 0 ? '+' : ''}${val} semitonos`;
             });
 
             const rateInput = document.getElementById('ctx-rate');
@@ -465,6 +460,7 @@
                 const val = parseFloat(e.target.value);
                 block.playbackRate = val;
                 
+                // Forzar sincronización en tiempo de ejecución del Grain Player
                 const factorBpmGlobal = Number(inputBpm.value) / 120;
                 block.player.playbackRate = val * factorBpmGlobal;
                 rateVal.innerText = `${val.toFixed(2)}x`;
@@ -485,10 +481,10 @@
                 block.player.reverse = block.reverse;
                 
                 if (block.reverse) {
-                    reverseBtn.className = "px-4 py-1 text-[10px] font-bold rounded border transition-all bg-emerald-500 text-black border-emerald-400 font-extrabold";
+                    reverseBtn.className = "px-4 py-1 text-[9px] font-bold rounded-sm border transition-all bg-emerald-500 text-black border-emerald-400";
                     reverseBtn.innerText = "SÍ";
                 } else {
-                    reverseBtn.className = "px-4 py-1 text-[10px] font-bold rounded border transition-all bg-zinc-850 text-zinc-400 border-zinc-700 hover:text-white";
+                    reverseBtn.className = "px-4 py-1 text-[9px] font-bold rounded-sm border transition-all bg-zinc-800 text-zinc-400 border-zinc-700 hover:text-white";
                     reverseBtn.innerText = "NO";
                 }
                 
@@ -551,8 +547,6 @@
             const medioAlto = altoLienzo / 2;
 
             ctx.clearRect(0, 0, width, altoLienzo);
-            
-            // Color verde esmeralda dinámico para denotar el audio modificado en reversa
             ctx.fillStyle = block.reverse ? '#10b981' : '#ffffff'; 
 
             for (let i = 0; i < totalBarras; i++) {
@@ -725,7 +719,7 @@
                             blocksList.splice(index, 1);
 
                             const quedanBloquesEnTrack = blocksList.some(b => b.trackId === trackIdAsociado);
-                            if (!quedanBloquesEnTrack) {
+                            if (!quenadnBloquesEnTrack) {
                                 const tIndex = tracksList.findIndex(t => t.id === trackIdAsociado);
                                 if (tIndex !== -1) {
                                     tracksList[tIndex].volumeNode.dispose();
