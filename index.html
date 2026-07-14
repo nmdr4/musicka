@@ -123,7 +123,7 @@
 
         let tracksList = []; 
         let blocksList = []; 
-        let selectedBlockIds = []; // Ahora soporta múltiples IDs seleccionados
+        let selectedBlockIds = []; 
         let blockIdCounter = 0;
         let trackIdCounter = 0;
         let copiedBlockData = null;
@@ -138,6 +138,19 @@
         let pixelsPerSecond = basePixelsPerSecond * currentZoomLevel;
 
         document.documentElement.style.setProperty('--grid-width', `${pixelsPerSecond}px`);
+
+        // CREAR MENÚ CONTEXTUAL DINÁMICO EN EL DOM
+        const menuContextual = document.createElement('div');
+        menuContextual.id = 'menu-contextual-bloque';
+        menuContextual.className = 'hidden absolute bg-[#121214] border border-zinc-800 p-4 rounded-lg shadow-2xl z-50 w-64 text-zinc-300 font-mono text-xs flex flex-col gap-3';
+        document.body.appendChild(menuContextual);
+
+        // Cerrar menú contextual al hacer clic fuera
+        document.addEventListener('click', (e) => {
+            if (!menuContextual.contains(e.target)) {
+                menuContextual.classList.add('hidden');
+            }
+        });
 
         btnSnap.addEventListener('click', () => {
             isSnapActive = !isSnapActive;
@@ -154,28 +167,25 @@
         });
 
         // Modifica tu listener del input-bpm para que cambie la velocidad del audio:
-inputBpm.addEventListener('change', (e) => {
-    let bpm = Math.max(60, Math.min(200, Number(e.target.value)));
-    e.target.value = bpm;
-    Tone.Transport.bpm.value = bpm;
+        inputBpm.addEventListener('change', (e) => {
+            let bpm = Math.max(60, Math.min(200, Number(e.target.value)));
+            e.target.value = bpm;
+            Tone.Transport.bpm.value = bpm;
 
-    // Calcular la proporción de cambio (BPM Actual / BPM Base de 120)
-    const factorVelocidad = bpm / 120; 
+            const factorVelocidadGlobal = bpm / 120; 
 
-    // Ajustar la velocidad de reproducción de cada bloque asignado
-    blocksList.forEach(b => {
-        if (b.player) {
-            b.player.playbackRate = factorVelocidad;
-        }
-    });
-});
+            blocksList.forEach(b => {
+                if (b.player) {
+                    // Multiplicamos la velocidad relativa del bloque por el factor global del BPM
+                    b.player.playbackRate = b.playbackRate * factorVelocidadGlobal;
+                }
+            });
+        });
 
         function dibujarReglaDeTiempo() {
             timeRuler.innerHTML = '';
-            
             for (let i = 0; i < 200; i++) {
                 const mainX = i * pixelsPerSecond;
-                
                 const marker = document.createElement('div');
                 marker.className = "absolute top-0 bottom-0 border-l border-white/40 flex flex-col justify-between pl-1 pb-0.5";
                 marker.style.left = `${mainX}px`;
@@ -184,7 +194,6 @@ inputBpm.addEventListener('change', (e) => {
                 numSpan.className = "text-[10px] font-bold text-white pt-1 font-mono";
                 numSpan.innerText = i + 1;
                 marker.appendChild(numSpan);
-                
                 timeRuler.appendChild(marker);
 
                 const subDivisions = 4;
@@ -282,7 +291,7 @@ inputBpm.addEventListener('change', (e) => {
             });
         }
 
-        function crearNuevoBloque(posX, startTime, endTime, trackId, buffer, name) {
+        function crearNuevoBloque(posX, startTime, endTime, trackId, buffer, name, presetEffects = null) {
             const id = blockIdCounter++;
             const duration = endTime - startTime;
             const blockWidth = duration * pixelsPerSecond;
@@ -309,7 +318,22 @@ inputBpm.addEventListener('change', (e) => {
             }
             lucide.createIcons();
 
-            const player = new Tone.Player({ url: buffer, sync: false }).connect(targetTrack.volumeNode);
+            // === CADENA DE EFECTOS INDIVIDUAL POR BLOQUE ===
+            const blockVolumeNode = new Tone.Volume(presetEffects ? presetEffects.volume : 0);
+            const pitchShiftNode = new Tone.PitchShift(presetEffects ? presetEffects.pitch : 0);
+            
+            // Conectar: Player -> PitchShift -> Volume de Bloque -> Canal de Pista (Track)
+            pitchShiftNode.connect(blockVolumeNode);
+            blockVolumeNode.connect(targetTrack.volumeNode);
+
+            const player = new Tone.Player({ url: buffer, sync: false });
+            player.connect(pitchShiftNode);
+
+            // Cargar presets si se está clonando/cortando
+            if (presetEffects) {
+                player.playbackRate = presetEffects.playbackRate;
+                player.reverse = presetEffects.reverse;
+            }
 
             const blockObject = {
                 id: id,
@@ -317,28 +341,44 @@ inputBpm.addEventListener('change', (e) => {
                 domElement: dom,
                 canvasElement: canvas,
                 player: player,
+                pitchShift: pitchShiftNode,
+                blockVolume: blockVolumeNode,
                 buffer: buffer,
                 fileName: name,
                 leftX: posX,
                 audioStart: startTime,
                 audioEnd: endTime,
-                audioDuration: duration
+                audioDuration: duration,
+                // Valores de efectos guardados localmente para clonaciones y UI
+                pitch: presetEffects ? presetEffects.pitch : 0,
+                playbackRate: presetEffects ? presetEffects.playbackRate : 1.0,
+                reverse: presetEffects ? presetEffects.reverse : false,
+                volume: presetEffects ? presetEffects.volume : 0 // En decibelios (dB)
             };
 
             blocksList.push(blockObject);
 
             dom.addEventListener('mousedown', (e) => {
-    // Pasamos e.shiftKey para saber si la tecla Shift estaba presionada
-    seleccionarBloque(id, e.shiftKey); 
-    
-    isDragging = true;
-    dom.classList.replace('cursor-grab', 'cursor-grabbing');
-    
-    const rect = dom.getBoundingClientRect();
-    startX = e.clientX - rect.left;
-    draggedBlockData = blockObject;
-    e.stopPropagation(); 
-});
+                if (e.button === 2) return; // Ignorar clic derecho para el arrastre
+                seleccionarBloque(id, e.shiftKey); 
+                
+                isDragging = true;
+                dom.classList.replace('cursor-grab', 'cursor-grabbing');
+                
+                const rect = dom.getBoundingClientRect();
+                startX = e.clientX - rect.left;
+                draggedBlockData = blockObject;
+                e.stopPropagation(); 
+            });
+
+            // MENU CONTEXTUAL AL CLIC DERECHO
+            dom.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                seleccionarBloque(id, false);
+                mostrarMenuContextual(blockObject, e.clientX, e.clientY);
+            });
+
             canvas.style.width = `${blockWidth}px`;
             requestAnimationFrame(() => {
                 renderizarSeccionOndaHD(blockObject);
@@ -348,39 +388,132 @@ inputBpm.addEventListener('change', (e) => {
             seleccionarBloque(id);
         }
 
+        // FUNCIÓN QUE RENDERIZA EL MENÚ DE EFECTOS DEL BLOQUE
+        function mostrarMenuContextual(block, x, y) {
+            menuContextual.innerHTML = `
+                <div class="flex items-center justify-between border-b border-zinc-800 pb-2 mb-1">
+                    <span class="font-bold text-white truncate max-w-[160px]">${block.fileName}</span>
+                    <span class="text-[9px] text-zinc-500 font-mono">EDITAR AUDIO</span>
+                </div>
+                
+                <!-- CONTROL: PITCH -->
+                <div class="flex flex-col gap-1">
+                    <div class="flex justify-between text-[10px]">
+                        <span class="text-zinc-400">PITCH (Tono)</span>
+                        <span id="ctx-pitch-val" class="font-bold text-white">${block.pitch > 0 ? '+' : ''}${block.pitch} semitones</span>
+                    </div>
+                    <input id="ctx-pitch" type="range" min="-12" max="12" step="1" value="${block.pitch}" class="w-full accent-white bg-zinc-800 h-1 appearance-none cursor-pointer">
+                </div>
+
+                <!-- CONTROL: VELOCIDAD -->
+                <div class="flex flex-col gap-1">
+                    <div class="flex justify-between text-[10px]">
+                        <span class="text-zinc-400">VELOCIDAD (Rate)</span>
+                        <span id="ctx-rate-val" class="font-bold text-white">${block.playbackRate.toFixed(2)}x</span>
+                    </div>
+                    <input id="ctx-rate" type="range" min="0.25" max="3.0" step="0.05" value="${block.playbackRate}" class="w-full accent-white bg-zinc-800 h-1 appearance-none cursor-pointer">
+                </div>
+
+                <!-- CONTROL: GANANCIA LOCAL -->
+                <div class="flex flex-col gap-1">
+                    <div class="flex justify-between text-[10px]">
+                        <span class="text-zinc-400">VOLUMEN (dB)</span>
+                        <span id="ctx-vol-val" class="font-bold text-white">${block.volume > 0 ? '+' : ''}${block.volume} dB</span>
+                    </div>
+                    <input id="ctx-vol" type="range" min="-30" max="12" step="1" value="${block.volume}" class="w-full accent-white bg-zinc-800 h-1 appearance-none cursor-pointer">
+                </div>
+
+                <!-- CONTROL: REVERSA -->
+                <div class="flex items-center justify-between bg-zinc-900/50 p-2 border border-zinc-800/80">
+                    <span class="text-zinc-400">EFECTO REVERSA</span>
+                    <button id="ctx-reverse" class="px-3 py-1 font-bold rounded-none border transition ${block.reverse ? 'bg-white text-black border-white' : 'bg-zinc-800 text-zinc-400 border-zinc-700 hover:text-white'}">
+                        ${block.reverse ? 'REVERSA ON' : 'REVERSA OFF'}
+                    </button>
+                </div>
+            `;
+
+            menuContextual.style.left = `${x}px`;
+            menuContextual.style.top = `${y}px`;
+            menuContextual.classList.remove('hidden');
+
+            // Listeners de los Inputs del menú contextual
+            const pitchInput = document.getElementById('ctx-pitch');
+            const pitchVal = document.getElementById('ctx-pitch-val');
+            pitchInput.addEventListener('input', (e) => {
+                const val = parseInt(e.target.value);
+                block.pitch = val;
+                block.pitchShift.pitch = val;
+                pitchVal.innerText = `${val > 0 ? '+' : ''}${val} semitones`;
+            });
+
+            const rateInput = document.getElementById('ctx-rate');
+            const rateVal = document.getElementById('ctx-rate-val');
+            rateInput.addEventListener('input', (e) => {
+                const val = parseFloat(e.target.value);
+                block.playbackRate = val;
+                
+                // Aplicar velocidad del bloque calculada en base al tempo actual
+                const factorBpmGlobal = Number(inputBpm.value) / 120;
+                block.player.playbackRate = val * factorBpmGlobal;
+                rateVal.innerText = `${val.toFixed(2)}x`;
+            });
+
+            const volInput = document.getElementById('ctx-vol');
+            const volVal = document.getElementById('ctx-vol-val');
+            volInput.addEventListener('input', (e) => {
+                const val = parseInt(e.target.value);
+                block.volume = val;
+                block.blockVolume.volume.value = val;
+                volVal.innerText = `${val > 0 ? '+' : ''}${val} dB`;
+            });
+
+            const reverseBtn = document.getElementById('ctx-reverse');
+            reverseBtn.addEventListener('click', () => {
+                block.reverse = !block.reverse;
+                block.player.reverse = block.reverse;
+                
+                if (block.reverse) {
+                    reverseBtn.className = "px-3 py-1 font-bold rounded-none border transition bg-white text-black border-white";
+                    reverseBtn.innerText = "REVERSA ON";
+                } else {
+                    reverseBtn.className = "px-3 py-1 font-bold rounded-none border transition bg-zinc-800 text-zinc-400 border-zinc-700 hover:text-white";
+                    reverseBtn.innerText = "REVERSA OFF";
+                }
+                
+                // Forzar re-render de la onda al cambiar de dirección
+                renderizarSeccionOndaHD(block);
+            });
+        }
+
         function seleccionarBloque(id, shiftKey = false) {
-    if (shiftKey) {
-        // Si ya estaba seleccionado con Shift, lo quitamos (toggle)
-        if (selectedBlockIds.includes(id)) {
-            selectedBlockIds = selectedBlockIds.filter(bId => bId !== id);
-        } else {
-            // Si no estaba, lo agregamos a la lista existente
-            selectedBlockIds.push(id);
-        }
-    } else {
-        // Clic normal sin Shift: limpiamos los demás y dejamos solo este
-        selectedBlockIds = [id];
-    }
+            if (shiftKey) {
+                if (selectedBlockIds.includes(id)) {
+                    selectedBlockIds = selectedBlockIds.filter(bId => bId !== id);
+                } else {
+                    selectedBlockIds.push(id);
+                }
+            } else {
+                selectedBlockIds = [id];
+            }
 
-    // Actualizar los estilos visuales de TODOS los bloques en la pantalla
-    blocksList.forEach(b => {
-        if (selectedBlockIds.includes(b.id)) {
-            b.domElement.classList.remove('border-zinc-800');
-            b.domElement.classList.add('border-white', 'shadow-[0_0_12px_rgba(255,255,255,0.2)]');
-        } else {
-            b.domElement.classList.remove('border-white', 'shadow-[0_0_12px_rgba(255,255,255,0.2)]');
-            b.domElement.classList.add('border-zinc-800');
+            blocksList.forEach(b => {
+                if (selectedBlockIds.includes(b.id)) {
+                    b.domElement.classList.remove('border-zinc-800');
+                    b.domElement.classList.add('border-white', 'shadow-[0_0_12px_rgba(255,255,255,0.2)]');
+                } else {
+                    b.domElement.classList.remove('border-white', 'shadow-[0_0_12px_rgba(255,255,255,0.2)]');
+                    b.domElement.classList.add('border-zinc-800');
+                }
+            });
         }
-    });
-}
 
-function deseleccionarTodo() {
-    selectedBlockIds = []; // Vaciamos el array
-    blocksList.forEach(b => {
-        b.domElement.classList.remove('border-white', 'shadow-[0_0_12px_rgba(255,255,255,0.2)]');
-        b.domElement.classList.add('border-zinc-800');
-    });
-}
+        function deseleccionarTodo() {
+            selectedBlockIds = [];
+            blocksList.forEach(b => {
+                b.domElement.classList.remove('border-white', 'shadow-[0_0_12px_rgba(255,255,255,0.2)]');
+                b.domElement.classList.add('border-zinc-800');
+            });
+        }
 
         function renderizarSeccionOndaHD(block) {
             const canvas = block.canvasElement;
@@ -407,10 +540,12 @@ function deseleccionarTodo() {
             const medioAlto = altoLienzo / 2;
 
             ctx.clearRect(0, 0, width, altoLienzo);
-            ctx.fillStyle = '#ffffff';
+            ctx.fillStyle = block.reverse ? '#f43f5e' : '#ffffff'; // Rojo si está en reversa, blanco normal
 
             for (let i = 0; i < totalBarras; i++) {
-                let inicioMuestra = i * pasoMuestra + muestraInicio;
+                // Si está en reversa, leer la onda en dirección opuesta
+                let indiceBarra = block.reverse ? (totalBarras - 1 - i) : i;
+                let inicioMuestra = indiceBarra * pasoMuestra + muestraInicio;
                 let maximoValor = 0;
                 
                 for (let j = 0; j < pasoMuestra; j++) {
@@ -451,26 +586,21 @@ function deseleccionarTodo() {
         btnZoomOut.addEventListener('click', () => cambiarZoom(-0.1));
 
         timelineContainer.addEventListener('mousedown', (e) => {
-    if (isDragging) return;
+            if (isDragging) return;
+            const rect = timelineContainer.getBoundingClientRect();
+            const clickYDentroDelDiv = e.clientY - rect.top;
+            
+            if (clickYDentroDelDiv >= timelineContainer.clientHeight) {
+                return; 
+            }
 
-    // DETECTAR CLIC EN EL SCROLLBAR INFERIOR
-    // Si la posición Y del clic es mayor a la altura visible del contenedor,
-    // significa que el usuario está interactuando con la barra de scroll.
-    const rect = timelineContainer.getBoundingClientRect();
-    const clickYDentroDelDiv = e.clientY - rect.top;
-    
-    if (clickYDentroDelDiv >= timelineContainer.clientHeight) {
-        // Es un clic en el scrollbar. Salimos de la función y dejamos que el navegador haga lo suyo.
-        return; 
-    }
-
-    if (e.target === timelineContainer || e.target === document.getElementById('timeline-stretch') || e.target.parentNode === tracksContainer) {
-        deseleccionarTodo();
-    }
-    
-    isMovingPlayhead = true;
-    moverLineaA(e);
-});
+            if (e.target === timelineContainer || e.target === document.getElementById('timeline-stretch') || e.target.parentNode === tracksContainer) {
+                deseleccionarTodo();
+            }
+            
+            isMovingPlayhead = true;
+            moverLineaA(e);
+        });
 
         rulerContainer.addEventListener('mousedown', (e) => {
             isMovingPlayhead = true;
@@ -561,115 +691,137 @@ function deseleccionarTodo() {
         }
         requestAnimationFrame(actualizarPlayhead);
 
-        // ATAJOS TECLADO
-        // ATAJOS TECLADO
-window.addEventListener('keydown', (e) => {
-    const isModifier = e.ctrlKey || e.metaKey;
+        // ATAJOS DE TECLADO
+        window.addEventListener('keydown', (e) => {
+            const isModifier = e.ctrlKey || e.metaKey;
 
-    // 1. BORRAR BLOQUE (Ctrl + X)
-    if (isModifier && e.key.toLowerCase() === 'x') {
-        if (selectedBlockId !== null) {
-            e.preventDefault();
-            const index = blocksList.findIndex(b => b.id === selectedBlockId);
-            if (index !== -1) {
-                const trackIdAsociado = blocksList[index].trackId;
-                
-                blocksList[index].player.dispose();
-                blocksList[index].domElement.remove();
-                blocksList.splice(index, 1);
-                selectedBlockId = null;
+            // 1. BORRAR BLOQUE (Ctrl + X)
+            if (isModifier && e.key.toLowerCase() === 'x') {
+                if (selectedBlockIds.length > 0) {
+                    e.preventDefault();
+                    const idsParaBorrar = [...selectedBlockIds];
 
-                const quedanBloquesEnTrack = blocksList.some(b => b.trackId === trackIdAsociado);
-                if (!quedanBloquesEnTrack) {
-                    const tIndex = tracksList.findIndex(t => t.id === trackIdAsociado);
-                    if (tIndex !== -1) {
-                        tracksList[tIndex].volumeNode.dispose();
-                        tracksList[tIndex].domRow.remove(); 
-                        tracksList[tIndex].domHeader.remove(); 
-                        tracksList.splice(tIndex, 1); 
-                        
-                        tracksList.forEach((t, idx) => {
-                            const spanLabel = t.domHeader.querySelector('span');
-                            if (spanLabel) spanLabel.innerText = `TRACK ${idx + 1}`;
-                        });
+                    idsParaBorrar.forEach(idAEliminar => {
+                        const index = blocksList.findIndex(b => b.id === idAEliminar);
+                        if (index !== -1) {
+                            const trackIdAsociado = blocksList[index].trackId;
+                            
+                            blocksList[index].player.dispose();
+                            blocksList[index].pitchShift.dispose();
+                            blocksList[index].blockVolume.dispose();
+                            blocksList[index].domElement.remove();
+                            blocksList.splice(index, 1);
+
+                            const quedanBloquesEnTrack = blocksList.some(b => b.trackId === trackIdAsociado);
+                            if (!quedanBloquesEnTrack) {
+                                const tIndex = tracksList.findIndex(t => t.id === trackIdAsociado);
+                                if (tIndex !== -1) {
+                                    tracksList[tIndex].volumeNode.dispose();
+                                    tracksList[tIndex].domRow.remove(); 
+                                    tracksList[tIndex].domHeader.remove(); 
+                                    tracksList.splice(tIndex, 1); 
+                                    
+                                    tracksList.forEach((t, idx) => {
+                                        const spanLabel = t.domHeader.querySelector('span');
+                                        if (spanLabel) spanLabel.innerText = `TRACK ${idx + 1}`;
+                                    });
+                                }
+                            }
+                        }
+                    });
+                    deseleccionarTodo();
+                    reprogramarSecuenciadorGlobal();
+                }
+            }
+
+            // 2. COPIAR BLOQUE (Ctrl + C)
+            if (isModifier && e.key.toLowerCase() === 'c') {
+                if (selectedBlockIds.length > 0) {
+                    e.preventDefault();
+                    const ultimoId = selectedBlockIds[selectedBlockIds.length - 1];
+                    const block = blocksList.find(b => b.id === ultimoId);
+                    if (block) {
+                        copiedBlockData = block;
+                        console.log("Bloque copiado:", block.fileName);
                     }
                 }
-                reprogramarSecuenciadorGlobal();
-            }
-        }
-    }
-
-    // 2. COPIAR BLOQUE (Ctrl + C)
-    if (isModifier && e.key.toLowerCase() === 'c') {
-        if (selectedBlockId !== null) {
-            e.preventDefault();
-            const block = blocksList.find(b => b.id === selectedBlockId);
-            if (block) {
-                copiedBlockData = block; // Guardamos la referencia en el portapapeles
-                console.log("Bloque copiado:", block.fileName);
-            }
-        }
-    }
-
-    // 3. PEGAR BLOQUE (Ctrl + V)
-    if (isModifier && e.key.toLowerCase() === 'v') {
-        if (copiedBlockData !== null) {
-            e.preventDefault();
-            
-            // Calculamos la posición X basándonos en los segundos actuales del Transport (la línea de reproducción)
-            const tiempoActual = Tone.Transport.seconds;
-            let posX = tiempoActual * pixelsPerSecond;
-
-            // Si el SNAP está activo, ajustamos la posición de pegado a la cuadrícula
-            if (isSnapActive) {
-                const subDivisiones = 4;
-                const fraccionPxl = pixelsPerSecond / subDivisiones;
-                posX = Math.round(posX / fraccionPxl) * fraccionPxl;
             }
 
-            // Creamos el clon en el mismo track que el original usando la función existente
-            crearNuevoBloque(
-                posX, 
-                copiedBlockData.audioStart, 
-                copiedBlockData.audioEnd, 
-                copiedBlockData.trackId, 
-                copiedBlockData.buffer, 
-                copiedBlockData.fileName
-            );
-        }
-    }
-
-    // 4. CORTAR BLOQUE (Tecla C sola)
-    if (e.key.toLowerCase() === 'c' && !e.ctrlKey && !e.metaKey) {
-        if (selectedBlockId !== null) {
-            const block = blocksList.find(b => b.id === selectedBlockId);
-            if (block) {
-                const tiempoLinea = Tone.Transport.seconds;
-                const inicioBloqueTimeline = block.leftX / pixelsPerSecond;
-                const finBloqueTimeline = inicioBloqueTimeline + block.audioDuration;
-
-                if (tiempoLinea > inicioBloqueTimeline && tiempoLinea < finBloqueTimeline) {
-                    const tiempoDeCorteRelativo = tiempoLinea - inicioBloqueTimeline;
-                    const puntoCorteBuffer = block.audioStart + tiempoDeCorteRelativo;
-
-                    const originalEnd = block.audioEnd;
-                    const originalLeft = block.leftX;
-
-                    block.audioEnd = puntoCorteBuffer;
-                    block.audioDuration = puntoCorteBuffer - block.audioStart;
+            // 3. PEGAR BLOQUE (Ctrl + V)
+            if (isModifier && e.key.toLowerCase() === 'v') {
+                if (copiedBlockData !== null) {
+                    e.preventDefault();
                     
-                    const nuevoAnchoPrimerBloque = block.audioDuration * pixelsPerSecond;
-                    block.domElement.style.width = `${nuevoAnchoPrimerBloque}px`;
-                    block.canvasElement.style.width = `${nuevoAnchoPrimerBloque}px`;
-                    renderizarSeccionOndaHD(block);
+                    const tiempoActual = Tone.Transport.seconds;
+                    let posX = tiempoActual * pixelsPerSecond;
 
-                    const nuevoPosX = originalLeft + nuevoAnchoPrimerBloque;
-                    crearNuevoBloque(nuevoPosX, puntoCorteBuffer, originalEnd, block.trackId, block.buffer, block.fileName);
+                    if (isSnapActive) {
+                        const subDivisiones = 4;
+                        const fraccionPxl = pixelsPerSecond / subDivisiones;
+                        posX = Math.round(posX / fraccionPxl) * fraccionPxl;
+                    }
+
+                    // Pasar efectos heredados al clon
+                    const presetEffects = {
+                        pitch: copiedBlockData.pitch,
+                        playbackRate: copiedBlockData.playbackRate,
+                        reverse: copiedBlockData.reverse,
+                        volume: copiedBlockData.volume
+                    };
+
+                    crearNuevoBloque(
+                        posX, 
+                        copiedBlockData.audioStart, 
+                        copiedBlockData.audioEnd, 
+                        copiedBlockData.trackId, 
+                        copiedBlockData.buffer, 
+                        copiedBlockData.fileName,
+                        presetEffects
+                    );
                 }
             }
-        }
-    }
-});
+
+            // 4. CORTAR BLOQUE (Tecla C sola)
+            if (e.key.toLowerCase() === 'c' && !e.ctrlKey && !e.metaKey) {
+                if (selectedBlockIds.length > 0) {
+                    const ultimoId = selectedBlockIds[selectedBlockIds.length - 1];
+                    const block = blocksList.find(b => b.id === ultimoId);
+                    if (block) {
+                        const tiempoLinea = Tone.Transport.seconds;
+                        const inicioBloqueTimeline = block.leftX / pixelsPerSecond;
+                        const finBloqueTimeline = inicioBloqueTimeline + block.audioDuration;
+
+                        if (tiempoLinea > inicioBloqueTimeline && tiempoLinea < finBloqueTimeline) {
+                            const tiempoDeCorteRelativo = tiempoLinea - inicioBloqueTimeline;
+                            const puntoCorteBuffer = block.audioStart + tiempoDeCorteRelativo;
+
+                            const originalEnd = block.audioEnd;
+                            const originalLeft = block.leftX;
+
+                            block.audioEnd = puntoCorteBuffer;
+                            block.audioDuration = puntoCorteBuffer - block.audioStart;
+                            
+                            const nuevoAnchoPrimerBloque = block.audioDuration * pixelsPerSecond;
+                            block.domElement.style.width = `${nuevoAnchoPrimerBloque}px`;
+                            block.canvasElement.style.width = `${nuevoAnchoPrimerBloque}px`;
+                            renderizarSeccionOndaHD(block);
+
+                            const nuevoPosX = originalLeft + nuevoAnchoPrimerBloque;
+
+                            // Heredar efectos para el pedazo cortado resultante
+                            const presetEffects = {
+                                pitch: block.pitch,
+                                playbackRate: block.playbackRate,
+                                reverse: block.reverse,
+                                volume: block.volume
+                            };
+
+                            crearNuevoBloque(nuevoPosX, puntoCorteBuffer, originalEnd, block.trackId, block.buffer, block.fileName, presetEffects);
+                        }
+                    }
+                }
+            }
+        });
 
         btnPlay.addEventListener('click', async () => {
             await Tone.start();
