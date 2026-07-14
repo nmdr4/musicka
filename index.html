@@ -139,13 +139,12 @@
 
         document.documentElement.style.setProperty('--grid-width', `${pixelsPerSecond}px`);
 
-        // CREAR MENÚ CONTEXTUAL DINÁMICO EN EL DOM
+        // MENÚ CONTEXTUAL PROFESIONAL EN EL DOM
         const menuContextual = document.createElement('div');
         menuContextual.id = 'menu-contextual-bloque';
-        menuContextual.className = 'hidden absolute bg-[#121214] border border-zinc-800 p-4 rounded-lg shadow-2xl z-50 w-64 text-zinc-300 font-mono text-xs flex flex-col gap-3';
+        menuContextual.className = 'hidden absolute bg-[#0e0e10] border border-zinc-800 p-4 rounded-md shadow-2xl z-50 w-64 text-zinc-300 font-mono text-xs flex flex-col gap-4';
         document.body.appendChild(menuContextual);
 
-        // Cerrar menú contextual al hacer clic fuera
         document.addEventListener('click', (e) => {
             if (!menuContextual.contains(e.target)) {
                 menuContextual.classList.add('hidden');
@@ -166,17 +165,15 @@
             headersColumn.scrollTop = timelineContainer.scrollTop;
         });
 
-        // Modifica tu listener del input-bpm para que cambie la velocidad del audio:
         inputBpm.addEventListener('change', (e) => {
             let bpm = Math.max(60, Math.min(200, Number(e.target.value)));
             e.target.value = bpm;
             Tone.Transport.bpm.value = bpm;
-
+            
+            // Sincronización del warp de tempo global
             const factorVelocidadGlobal = bpm / 120; 
-
             blocksList.forEach(b => {
                 if (b.player) {
-                    // Multiplicamos la velocidad relativa del bloque por el factor global del BPM
                     b.player.playbackRate = b.playbackRate * factorVelocidadGlobal;
                 }
             });
@@ -318,18 +315,28 @@
             }
             lucide.createIcons();
 
-            // === CADENA DE EFECTOS INDIVIDUAL POR BLOQUE ===
+            // === CADENA DE AUDIO PROFESIONAL (GRAIN PLAYER + PITCH SHIFT ESTUDIO) ===
             const blockVolumeNode = new Tone.Volume(presetEffects ? presetEffects.volume : 0);
-            const pitchShiftNode = new Tone.PitchShift(presetEffects ? presetEffects.pitch : 0);
             
-            // Conectar: Player -> PitchShift -> Volume de Bloque -> Canal de Pista (Track)
+            // Configuramos un PitchShift optimizado de baja latencia con ventana pro de 0.1s
+            const pitchShiftNode = new Tone.PitchShift({
+                pitch: presetEffects ? presetEffects.pitch : 0,
+                windowSize: 0.1,
+                feedback: 0
+            });
+            
             pitchShiftNode.connect(blockVolumeNode);
             blockVolumeNode.connect(targetTrack.volumeNode);
 
-            const player = new Tone.Player({ url: buffer, sync: false });
+            // GrainPlayer nos da Time-Stretching cristalino e independiente de tono
+            const player = new Tone.GrainPlayer({
+                url: buffer,
+                overlap: 0.1,
+                grainSize: 0.08,
+                loop: false
+            });
             player.connect(pitchShiftNode);
 
-            // Cargar presets si se está clonando/cortando
             if (presetEffects) {
                 player.playbackRate = presetEffects.playbackRate;
                 player.reverse = presetEffects.reverse;
@@ -349,17 +356,16 @@
                 audioStart: startTime,
                 audioEnd: endTime,
                 audioDuration: duration,
-                // Valores de efectos guardados localmente para clonaciones y UI
                 pitch: presetEffects ? presetEffects.pitch : 0,
                 playbackRate: presetEffects ? presetEffects.playbackRate : 1.0,
                 reverse: presetEffects ? presetEffects.reverse : false,
-                volume: presetEffects ? presetEffects.volume : 0 // En decibelios (dB)
+                volume: presetEffects ? presetEffects.volume : 0
             };
 
             blocksList.push(blockObject);
 
             dom.addEventListener('mousedown', (e) => {
-                if (e.button === 2) return; // Ignorar clic derecho para el arrastre
+                if (e.button === 2) return; 
                 seleccionarBloque(id, e.shiftKey); 
                 
                 isDragging = true;
@@ -371,7 +377,6 @@
                 e.stopPropagation(); 
             });
 
-            // MENU CONTEXTUAL AL CLIC DERECHO
             dom.addEventListener('contextmenu', (e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -388,55 +393,63 @@
             seleccionarBloque(id);
         }
 
-        // FUNCIÓN QUE RENDERIZA EL MENÚ DE EFECTOS DEL BLOQUE
+        // CONTROL CONTEXTUAL DE GRADO DE ESTUDIO
         function mostrarMenuContextual(block, x, y) {
             menuContextual.innerHTML = `
                 <div class="flex items-center justify-between border-b border-zinc-800 pb-2 mb-1">
-                    <span class="font-bold text-white truncate max-w-[160px]">${block.fileName}</span>
-                    <span class="text-[9px] text-zinc-500 font-mono">EDITAR AUDIO</span>
+                    <span class="font-bold text-white truncate max-w-[150px] tracking-tight">${block.fileName}</span>
+                    <span class="text-[9px] text-emerald-400 font-bold font-mono tracking-widest">DSP PRO</span>
                 </div>
                 
-                <!-- CONTROL: PITCH -->
+                <!-- PITCH SHIFT DE PRECISIÓN -->
                 <div class="flex flex-col gap-1">
                     <div class="flex justify-between text-[10px]">
-                        <span class="text-zinc-400">PITCH (Tono)</span>
-                        <span id="ctx-pitch-val" class="font-bold text-white">${block.pitch > 0 ? '+' : ''}${block.pitch} semitones</span>
+                        <span class="text-zinc-400 tracking-tight">PITCH (TONO)</span>
+                        <span id="ctx-pitch-val" class="font-bold text-emerald-400">${block.pitch > 0 ? '+' : ''}${block.pitch} semitones</span>
                     </div>
                     <input id="ctx-pitch" type="range" min="-12" max="12" step="1" value="${block.pitch}" class="w-full accent-white bg-zinc-800 h-1 appearance-none cursor-pointer">
                 </div>
 
-                <!-- CONTROL: VELOCIDAD -->
+                <!-- TIME STRETCHING CRISTALINO -->
                 <div class="flex flex-col gap-1">
                     <div class="flex justify-between text-[10px]">
-                        <span class="text-zinc-400">VELOCIDAD (Rate)</span>
-                        <span id="ctx-rate-val" class="font-bold text-white">${block.playbackRate.toFixed(2)}x</span>
+                        <span class="text-zinc-400 tracking-tight">VELOCIDAD</span>
+                        <span id="ctx-rate-val" class="font-bold text-emerald-400">${block.playbackRate.toFixed(2)}x</span>
                     </div>
                     <input id="ctx-rate" type="range" min="0.25" max="3.0" step="0.05" value="${block.playbackRate}" class="w-full accent-white bg-zinc-800 h-1 appearance-none cursor-pointer">
                 </div>
 
-                <!-- CONTROL: GANANCIA LOCAL -->
+                <!-- GANANCIA LIMPIA -->
                 <div class="flex flex-col gap-1">
                     <div class="flex justify-between text-[10px]">
-                        <span class="text-zinc-400">VOLUMEN (dB)</span>
-                        <span id="ctx-vol-val" class="font-bold text-white">${block.volume > 0 ? '+' : ''}${block.volume} dB</span>
+                        <span class="text-zinc-400 tracking-tight">VOLUMEN</span>
+                        <span id="ctx-vol-val" class="font-bold text-emerald-400">${block.volume > 0 ? '+' : ''}${block.volume} dB</span>
                     </div>
                     <input id="ctx-vol" type="range" min="-30" max="12" step="1" value="${block.volume}" class="w-full accent-white bg-zinc-800 h-1 appearance-none cursor-pointer">
                 </div>
 
-                <!-- CONTROL: REVERSA -->
-                <div class="flex items-center justify-between bg-zinc-900/50 p-2 border border-zinc-800/80">
-                    <span class="text-zinc-400">EFECTO REVERSA</span>
-                    <button id="ctx-reverse" class="px-3 py-1 font-bold rounded-none border transition ${block.reverse ? 'bg-white text-black border-white' : 'bg-zinc-800 text-zinc-400 border-zinc-700 hover:text-white'}">
-                        ${block.reverse ? 'REVERSA ON' : 'REVERSA OFF'}
+                <!-- REVERSA COMPACTA -->
+                <div class="flex items-center justify-between bg-zinc-900/40 p-2 border border-zinc-800 rounded">
+                    <span class="text-zinc-400 font-bold tracking-tight">REVERSA</span>
+                    <button id="ctx-reverse" class="px-4 py-1 text-[10px] font-bold rounded border transition-all ${block.reverse ? 'bg-emerald-500 text-black border-emerald-400 font-extrabold' : 'bg-zinc-850 text-zinc-400 border-zinc-700 hover:text-white'}">
+                        ${block.reverse ? 'SÍ' : 'NO'}
                     </button>
                 </div>
             `;
 
-            menuContextual.style.left = `${x}px`;
-            menuContextual.style.top = `${y}px`;
+            // Calcular colisiones con los bordes de la pantalla para posicionar el menú
+            const screenWidth = window.innerWidth;
+            const screenHeight = window.innerHeight;
+            let posX = x;
+            let posY = y;
+
+            if (x + 260 > screenWidth) posX = screenWidth - 270;
+            if (y + 260 > screenHeight) posY = screenHeight - 270;
+
+            menuContextual.style.left = `${posX}px`;
+            menuContextual.style.top = `${posY}px`;
             menuContextual.classList.remove('hidden');
 
-            // Listeners de los Inputs del menú contextual
             const pitchInput = document.getElementById('ctx-pitch');
             const pitchVal = document.getElementById('ctx-pitch-val');
             pitchInput.addEventListener('input', (e) => {
@@ -452,7 +465,6 @@
                 const val = parseFloat(e.target.value);
                 block.playbackRate = val;
                 
-                // Aplicar velocidad del bloque calculada en base al tempo actual
                 const factorBpmGlobal = Number(inputBpm.value) / 120;
                 block.player.playbackRate = val * factorBpmGlobal;
                 rateVal.innerText = `${val.toFixed(2)}x`;
@@ -473,14 +485,13 @@
                 block.player.reverse = block.reverse;
                 
                 if (block.reverse) {
-                    reverseBtn.className = "px-3 py-1 font-bold rounded-none border transition bg-white text-black border-white";
-                    reverseBtn.innerText = "REVERSA ON";
+                    reverseBtn.className = "px-4 py-1 text-[10px] font-bold rounded border transition-all bg-emerald-500 text-black border-emerald-400 font-extrabold";
+                    reverseBtn.innerText = "SÍ";
                 } else {
-                    reverseBtn.className = "px-3 py-1 font-bold rounded-none border transition bg-zinc-800 text-zinc-400 border-zinc-700 hover:text-white";
-                    reverseBtn.innerText = "REVERSA OFF";
+                    reverseBtn.className = "px-4 py-1 text-[10px] font-bold rounded border transition-all bg-zinc-850 text-zinc-400 border-zinc-700 hover:text-white";
+                    reverseBtn.innerText = "NO";
                 }
                 
-                // Forzar re-render de la onda al cambiar de dirección
                 renderizarSeccionOndaHD(block);
             });
         }
@@ -499,9 +510,9 @@
             blocksList.forEach(b => {
                 if (selectedBlockIds.includes(b.id)) {
                     b.domElement.classList.remove('border-zinc-800');
-                    b.domElement.classList.add('border-white', 'shadow-[0_0_12px_rgba(255,255,255,0.2)]');
+                    b.domElement.classList.add('border-emerald-500', 'shadow-[0_0_15px_rgba(16,185,129,0.15)]');
                 } else {
-                    b.domElement.classList.remove('border-white', 'shadow-[0_0_12px_rgba(255,255,255,0.2)]');
+                    b.domElement.classList.remove('border-emerald-500', 'shadow-[0_0_15px_rgba(16,185,129,0.15)]');
                     b.domElement.classList.add('border-zinc-800');
                 }
             });
@@ -510,7 +521,7 @@
         function deseleccionarTodo() {
             selectedBlockIds = [];
             blocksList.forEach(b => {
-                b.domElement.classList.remove('border-white', 'shadow-[0_0_12px_rgba(255,255,255,0.2)]');
+                b.domElement.classList.remove('border-emerald-500', 'shadow-[0_0_15px_rgba(16,185,129,0.15)]');
                 b.domElement.classList.add('border-zinc-800');
             });
         }
@@ -540,10 +551,11 @@
             const medioAlto = altoLienzo / 2;
 
             ctx.clearRect(0, 0, width, altoLienzo);
-            ctx.fillStyle = block.reverse ? '#f43f5e' : '#ffffff'; // Rojo si está en reversa, blanco normal
+            
+            // Color verde esmeralda dinámico para denotar el audio modificado en reversa
+            ctx.fillStyle = block.reverse ? '#10b981' : '#ffffff'; 
 
             for (let i = 0; i < totalBarras; i++) {
-                // Si está en reversa, leer la onda en dirección opuesta
                 let indiceBarra = block.reverse ? (totalBarras - 1 - i) : i;
                 let inicioMuestra = indiceBarra * pasoMuestra + muestraInicio;
                 let maximoValor = 0;
@@ -761,7 +773,6 @@
                         posX = Math.round(posX / fraccionPxl) * fraccionPxl;
                     }
 
-                    // Pasar efectos heredados al clon
                     const presetEffects = {
                         pitch: copiedBlockData.pitch,
                         playbackRate: copiedBlockData.playbackRate,
@@ -808,7 +819,6 @@
 
                             const nuevoPosX = originalLeft + nuevoAnchoPrimerBloque;
 
-                            // Heredar efectos para el pedazo cortado resultante
                             const presetEffects = {
                                 pitch: block.pitch,
                                 playbackRate: block.playbackRate,
